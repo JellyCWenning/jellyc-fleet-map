@@ -26,10 +26,17 @@
     .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
     svg { display: block; width: 100%; height: auto; }
     .map { background: var(--bg); }
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+    .tab { border: 1px solid var(--stroke); background: var(--elev); color: var(--text); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+    .tab.on { border-color: var(--accent); color: var(--accent); }
+    .panel[hidden] { display: none; }
+    .mermaid { background: #1a1a1a; border: 1px solid var(--stroke); border-radius: 8px; padding: 12px; overflow: auto; }
   </style>
 </head>
 <body>
   <div class="wrap">
+    <div class="tabs" id="tabs"></div>
+    <div class="panel" data-panel="fleet">
     <h1>JellyC fleet · three levels</h1>
     <p class="lead">Level 1 SERVER. Level 2 SYSTEM (or GROUP for externals). Level 3 is a process inside a system, or a named provider inside a group.</p>
     <div class="note">
@@ -38,6 +45,37 @@
     </div>
     <div class="pills" id="pills"></div>
     <div class="map" id="map"></div>
+    </div>
+    <div class="panel" data-panel="wenning2" hidden>
+      <h1>WenningNo.2</h1>
+      <p class="lead">SERVER reports EC2 · SYSTEM WenningNo.2 :3978 · Teams agent that acts as a user on the other five systems.</p>
+      <div class="mermaid" id="m-wenning2"></div>
+    </div>
+    <div class="panel" data-panel="info" hidden>
+      <h1>Info Dashboard</h1>
+      <p class="lead">SERVER reports EC2 · SYSTEM Info Dashboard :5000 · no login gate.</p>
+      <div class="mermaid" id="m-info"></div>
+    </div>
+    <div class="panel" data-panel="reports" hidden>
+      <h1>Daily Report</h1>
+      <p class="lead">SERVER reports EC2 · SYSTEM Daily Report :5001–5003 + Unified + Pulse.</p>
+      <div class="mermaid" id="m-reports"></div>
+    </div>
+    <div class="panel" data-panel="monitor" hidden>
+      <h1>Monitor</h1>
+      <p class="lead">SERVER reports EC2 · SYSTEM Monitor Hub :5005 · Hub plus eight child monitors.</p>
+      <div class="mermaid" id="m-monitor"></div>
+    </div>
+    <div class="panel" data-panel="nautilus" hidden>
+      <h1>Nautilus</h1>
+      <p class="lead">SERVER Sydney Nautilus EC2 · SYSTEM dumpling PMS · portfolio / risk / P&amp;L book.</p>
+      <div class="mermaid" id="m-nautilus"></div>
+    </div>
+    <div class="panel" data-panel="tolas" hidden>
+      <h1>Tolas</h1>
+      <p class="lead">SERVER Tokyo Tolas EC2 · SYSTEM Tolas :5004 · live trading control plane.</p>
+      <div class="mermaid" id="m-tolas"></div>
+    </div>
   </div>
   <script>
     const HUE = { wenning2:"#9386F2", info:"#81A1C1", reports:"#F1B467", monitor:"#DD7F76", nautilus:"#7BAFE9", tolas:"#3FA266", exchanges:"#B48EAD", infoplat:"#E4E4E48A", notify:"#FC6B83" };
@@ -299,6 +337,290 @@
       document.querySelectorAll("[data-focus]").forEach((g) => g.addEventListener("click", () => pick(g.getAttribute("data-focus"))));
     }
     render();
+
+    const TABS = [
+      { id:"fleet", label:"Fleet" },
+      { id:"wenning2", label:"WenningNo.2" },
+      { id:"info", label:"Info Dashboard" },
+      { id:"reports", label:"Daily Report" },
+      { id:"monitor", label:"Monitor" },
+      { id:"nautilus", label:"Nautilus" },
+      { id:"tolas", label:"Tolas" },
+    ];
+    const DIAGRAMS = {
+      wenning2: `flowchart TB
+  subgraph S1["SERVER · AWS Sydney reports EC2 · 3.25.77.33"]
+    subgraph SYS["SYSTEM · WenningNo.2 :3978"]
+      CF["cloudflared → :3978"]
+      BOT["bot FastAPI"]
+      POL["policy + ACL"]
+      CBR["cursor_bridge"]
+      JOB["JobManager"]
+      ENV["teams-agent/.env"]
+      CF --> BOT --> POL
+      POL --> CBR
+      POL --> JOB
+      ENV --- POL
+    end
+  end
+  subgraph GN["GROUP · Notify"]
+    TEAMS["Microsoft Teams"]
+    AZ["Azure Bot Service"]
+    CUR["Cursor Cloud"]
+  end
+  subgraph HOPS["SYSTEM hops · API keys"]
+    NAU["Nautilus :5000"]
+    TOL["Tolas :5004"]
+    REP["Info / Daily / Hub / Pulse"]
+  end
+  TEAMS --> AZ -->|JWT| CF
+  CBR -->|CURSOR_API_KEY| CUR
+  CUR --> NAU
+  CUR --> TOL
+  CUR --> REP
+  JOB --> NAU
+  JOB --> TOL
+  JOB --> REP`,
+      info: `flowchart TB
+  U["Any browser · no login"]
+  subgraph S1["SERVER · AWS Sydney reports EC2 · 3.25.77.33"]
+    subgraph SYS["SYSTEM · Info Dashboard :5000"]
+      TM["okx-basis-monitor · Flask · public POST"]
+      FAV["favorites*.json"]
+      MOD["predictor models"]
+      TM --- FAV
+      TM --- MOD
+    end
+  end
+  subgraph CEFI["GROUP · CeFi"]
+    OKX["OKX"]
+    DER["Deribit"]
+  end
+  subgraph INFO["GROUP · Info"]
+    CGL["CoinGlass"]
+    TT["Token Terminal"]
+  end
+  subgraph NOT["GROUP · Notify"]
+    PA["Power Automate FLOW_URL"]
+  end
+  U --> TM
+  TM -.-> OKX
+  TM -.-> DER
+  TM -.-> CGL
+  TM -.-> TT
+  TM -.-> PA`,
+      reports: `flowchart TB
+  Browser["Analyst browser"]
+  subgraph S1["SERVER · AWS Sydney reports EC2 · 3.25.77.33"]
+    subgraph SYS["SYSTEM · Daily Report :5001–5003 + Unified + Pulse"]
+      UNI["Unified :5006"]
+      BDIF["BDIF :5001"]
+      BBP["BBP :5002"]
+      BMN["BMN :5003"]
+      PUL["Pulse :5007"]
+      DB["reports.db WAL"]
+      ENV["Auto_Report/*/env"]
+      AUTH["jellyc_auth/"]
+      UNI --> BDIF
+      UNI --> BBP
+      UNI --> BMN
+      UNI --> PUL
+      BDIF --- DB
+      BBP --- DB
+      BMN --- DB
+      ENV --- BDIF
+      AUTH --- UNI
+    end
+  end
+  subgraph INFO["GROUP · Info"]
+    NAU["Nautilus noon book"]
+    HAR["Haruko"]
+    NAV["NAV Fund Services"]
+    CMC["CoinMarketCap"]
+  end
+  subgraph NOT["GROUP · Notify"]
+    SMTP["Office365 SMTP"]
+    SP["SharePoint"]
+  end
+  subgraph CEFI["GROUP · CeFi"]
+    BIN["Binance"]
+    BYB["Bybit"]
+  end
+  Browser --> UNI
+  BDIF -.-> NAU
+  BMN -.-> NAU
+  BBP -.-> NAU
+  BDIF -.-> HAR
+  BDIF -.-> NAV
+  BMN -.-> CMC
+  BDIF -.-> SMTP
+  BBP -.-> SP
+  PUL -.-> BIN
+  PUL -.-> BYB`,
+      monitor: `flowchart TB
+  Browser["Operator browser"]
+  subgraph S1["SERVER · AWS Sydney reports EC2 · 3.25.77.33"]
+    subgraph SYS["SYSTEM · Monitor Hub :5005"]
+      HUB["Flask Hub · TOTP / API key"]
+      DCLI["dumpling_client"]
+      AUTH["jellyc_auth/"]
+      M11["BMN delta · node 11"]
+      M151["BBP exposure · node 151"]
+      M193["basis_bot · node 193"]
+      MMAR["margin_risk"]
+      MLIT["LIT price"]
+      MPOLY["Polymarket"]
+      MTVL["HL TVL"]
+      M10X["10x Pulse"]
+      HUB --> M11
+      HUB --> M151
+      HUB --> M193
+      HUB --> MMAR
+      HUB --> MLIT
+      HUB --> MPOLY
+      HUB --> MTVL
+      HUB --> M10X
+      M11 --> DCLI
+      M151 --> DCLI
+      M193 --> DCLI
+      MMAR --> DCLI
+      AUTH --- HUB
+    end
+  end
+  subgraph HOP["SYSTEM hop"]
+    NAU["Nautilus book"]
+  end
+  subgraph CEFI["GROUP · CeFi"]
+    OKX["OKX ticker"]
+  end
+  subgraph INFO["GROUP · Info"]
+    GAM["Polymarket Gamma"]
+    LL["DeFiLlama"]
+  end
+  subgraph NOT["GROUP · Notify"]
+    PA["Power Automate"]
+    PD["PagerDuty"]
+    TEAMS["Teams"]
+  end
+  Browser --> HUB
+  DCLI -->|2 book| NAU
+  MLIT -.-> OKX
+  MPOLY -.-> GAM
+  MTVL -.-> LL
+  M10X -.-> LL
+  HUB -.-> PA --> TEAMS
+  HUB -.-> PD`,
+      nautilus: `flowchart TB
+  OP["Operators / scripts · API key"]
+  subgraph S1["SERVER · AWS Sydney Nautilus EC2 · :5000 TLS"]
+    subgraph SYS["SYSTEM · Nautilus dumpling PMS"]
+      EDGE["Host edge :5000"]
+      FE["frontend nginx"]
+      BE["backend ×2"]
+      SCH["scheduler"]
+      STR["streamer"]
+      PG["Postgres 16"]
+      SEC["secrets/accounts.json"]
+      ENV[".env"]
+      CC["chain_connector"]
+      BAK["backups/ 14d"]
+      EDGE --> FE --> BE --> PG
+      SCH --> PG
+      STR --> PG
+      SEC --- SCH
+      SEC --- STR
+      ENV --- BE
+      CC --- SCH
+      PG --> BAK
+    end
+  end
+  subgraph CEFI["GROUP · CeFi"]
+    VEN["OKX Binance Deribit Kraken Gate<br/>MEXC Coinbase HL Lighter"]
+  end
+  subgraph INFO["GROUP · Info"]
+    DBK["DeBank"]
+    RPC["Public RPCs"]
+    CG["CoinGecko"]
+    HAR["Haruko backfill"]
+  end
+  subgraph HOP["SYSTEM hops"]
+    TOL["Tolas live orders"]
+    USR["Tolas users.json SSH sync"]
+  end
+  OP --> EDGE
+  SCH -.-> VEN
+  STR -.-> VEN
+  SCH -.-> DBK
+  SCH -.-> RPC
+  SCH -.-> CG
+  BE -.-> HAR
+  BE -->|5 orders| TOL
+  USR --> SEC`,
+      tolas: `flowchart TB
+  UI["Browser → :5004"]
+  subgraph S1["SERVER · AWS Tokyo Tolas EC2 · 13.231.196.249"]
+    subgraph SYS["SYSTEM · Tolas :5004"]
+      FL["Flask tolas_app.py"]
+      WRK["in-process daemons"]
+      BF["funding bots"]
+      BB["basis bots"]
+      BR["rolling bots"]
+      BI["iceberg"]
+      BX["xex"]
+      ACC["accounts.json"]
+      FILL["fills CSV + fills.db"]
+      USR["users.json + TOTP"]
+      FL --> WRK
+      FL --> BF
+      FL --> BB
+      FL --> BR
+      FL --> BI
+      FL --> BX
+      ACC --- FL
+      ACC --- BF
+      FILL --- FL
+      USR --- FL
+    end
+  end
+  subgraph CEFI["GROUP · CeFi"]
+    OKX["OKX"]
+    LTR["Lighter"]
+    MXC["MEXC"]
+    HL["Hyperliquid"]
+  end
+  subgraph HOP["SYSTEM hops"]
+    INFO["Info Dashboard · trigger"]
+    NAU["Nautilus · live orders"]
+  end
+  UI --> FL
+  BF -.-> OKX
+  BF -.-> LTR
+  BF -.-> HL
+  BI -.-> MXC
+  FL -->|3 trigger| INFO
+  NAU -->|5 orders| FL`,
+    };
+    const drawn = {};
+    function showTab(id) {
+      document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.dataset.panel !== id; });
+      document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.tab === id));
+      if (id !== "fleet" && DIAGRAMS[id] && !drawn[id] && window.mermaid) {
+        const el = document.getElementById("m-" + id);
+        el.textContent = DIAGRAMS[id];
+        window.mermaid.run({ nodes: [el] });
+        drawn[id] = true;
+      }
+    }
+    document.getElementById("tabs").innerHTML = TABS.map((t, i) =>
+      `<button class="tab${i===0?" on":""}" data-tab="${t.id}">${t.label}</button>`
+    ).join("");
+    document.querySelectorAll(".tab").forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+  </script>
+  <script src="mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      window.mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose", flowchart: { htmlLabels: true, curve: "basis" } });
+    }
   </script>
 </body>
 </html>
