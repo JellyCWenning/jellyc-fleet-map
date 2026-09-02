@@ -31,6 +31,8 @@
     .tab.on { border-color: var(--accent); color: var(--accent); }
     .panel[hidden] { display: none; }
     .mermaid { background: #1a1a1a; border: 1px solid var(--stroke); border-radius: 8px; padding: 12px; overflow: auto; }
+    h2.chart-title { font-size: 16px; line-height: 22px; font-weight: 600; margin: 28px 0 10px; }
+    .charts h2.chart-title:first-child { margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -48,33 +50,33 @@
     </div>
     <div class="panel" data-panel="wenning2" hidden>
       <h1>WenningNo.2</h1>
-      <p class="lead">SERVER reports EC2 · SYSTEM WenningNo.2 :3978 · Teams agent that acts as a user on the other five systems.</p>
-      <div class="mermaid" id="m-wenning2"></div>
+      <p class="lead">SERVER reports EC2 · SYSTEM WenningNo.2 :3978 · Teams agent that acts as a user on the other five systems. All 4 diagrams from the review doc.</p>
+      <div class="charts" id="charts-wenning2"></div>
     </div>
     <div class="panel" data-panel="info" hidden>
       <h1>Info Dashboard</h1>
-      <p class="lead">SERVER reports EC2 · SYSTEM Info Dashboard :5000 · no login gate.</p>
-      <div class="mermaid" id="m-info"></div>
+      <p class="lead">SERVER reports EC2 · SYSTEM Info Dashboard :5000 · no login gate. All 2 diagrams from the review doc.</p>
+      <div class="charts" id="charts-info"></div>
     </div>
     <div class="panel" data-panel="reports" hidden>
       <h1>Daily Report</h1>
-      <p class="lead">SERVER reports EC2 · SYSTEM Daily Report :5001–5003 + Unified + Pulse.</p>
-      <div class="mermaid" id="m-reports"></div>
+      <p class="lead">SERVER reports EC2 · SYSTEM Daily Report :5001–5003 + Unified + Pulse. All 4 diagrams from the review doc.</p>
+      <div class="charts" id="charts-reports"></div>
     </div>
     <div class="panel" data-panel="monitor" hidden>
       <h1>Monitor</h1>
-      <p class="lead">SERVER reports EC2 · SYSTEM Monitor Hub :5005 · Hub plus eight child monitors.</p>
-      <div class="mermaid" id="m-monitor"></div>
+      <p class="lead">SERVER reports EC2 · SYSTEM Monitor Hub :5005 · Hub plus eight child monitors. All 3 diagrams from the review doc.</p>
+      <div class="charts" id="charts-monitor"></div>
     </div>
     <div class="panel" data-panel="nautilus" hidden>
       <h1>Nautilus</h1>
-      <p class="lead">SERVER Sydney Nautilus EC2 · SYSTEM dumpling PMS · portfolio / risk / P&amp;L book.</p>
-      <div class="mermaid" id="m-nautilus"></div>
+      <p class="lead">SERVER Sydney Nautilus EC2 · SYSTEM dumpling PMS · portfolio / risk / P&amp;L book. All 5 diagrams from the review doc.</p>
+      <div class="charts" id="charts-nautilus"></div>
     </div>
     <div class="panel" data-panel="tolas" hidden>
       <h1>Tolas</h1>
-      <p class="lead">SERVER Tokyo Tolas EC2 · SYSTEM Tolas :5004 · live trading control plane.</p>
-      <div class="mermaid" id="m-tolas"></div>
+      <p class="lead">SERVER Tokyo Tolas EC2 · SYSTEM Tolas :5004 · live trading control plane. All 3 diagrams from the review doc.</p>
+      <div class="charts" id="charts-tolas"></div>
     </div>
   </div>
   <script>
@@ -104,6 +106,14 @@
       if (focus === "all") return true;
       if (nodes.includes(focus)) return true;
       return nodes.some((n) => (RELATED[focus] || []).includes(n));
+    }
+    function edgeLit(nodes, kind) {
+      if (focus === "all") return true;
+      if (kind === "sys" || kind === "spine") {
+        if (focus === "exchanges" || focus === "infoplat" || focus === "notify") return false;
+        return nodes.includes(focus);
+      }
+      return nodes.includes(focus);
     }
     function op(nodes, faded) { return lit(nodes) ? 1 : faded; }
     function ortho(pts, r) {
@@ -144,8 +154,9 @@
     }
     function group(x,y,w,h,title,nodes,hue) {
       const tint = HUE[hue];
-      return `<g opacity="${op(nodes,0.36)}">
-        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${tint}" fill-opacity="0.1" stroke="${tint}"/>
+      const on = focus !== "all" && nodes.includes(focus);
+      return `<g opacity="${op(nodes,0.36)}" style="cursor:pointer" data-focus="${nodes[0]}">
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${tint}" fill-opacity="${on?0.22:0.1}" stroke="${tint}"/>
         <text x="${x+10}" y="${y+16}" fill="${tint}" font-size="9" font-weight="600">GROUP</text>
         <text x="${x+56}" y="${y+16}" fill="${T.text}" font-size="11" font-weight="600">${esc(title)}</text>
       </g>`;
@@ -157,16 +168,16 @@
         ${sub ? `<text x="${x+5}" y="${y+23}" fill="${T.muted}" font-size="8">${esc(sub)}</text>` : ""}
       </g>`;
     }
-    function edge(pts,nodes,label,lx,ly,kind,from) {
+    function edge(pts,nodes,kind,from,label,lx,ly) {
       const color = kind === "leaf" ? (from ? HUE[from] : T.stroke) : T.accent;
       const marker = kind === "sys" ? "url(#arrS)" : kind === "leaf" ? "url(#arr-" + from + ")" : "";
-      const dash = kind === "leaf" ? 'stroke-dasharray="5 3"' : "";
-      const sw = kind === "leaf" ? 1.2 : 2;
+      const dash = kind === "leaf" ? 'stroke-dasharray="7 4"' : "";
+      const sw = kind === "leaf" ? 1.6 : 2;
       const start = kind !== "spine" ? `<circle cx="${pts[0].x}" cy="${pts[0].y}" r="2" fill="${color}"/>` : "";
       const lab = (kind === "sys" || kind === "spine") && label
-        ? `<rect x="${lx-3}" y="${ly-8}" width="${label.length*5.1+8}" height="12" rx="2" fill="${T.editor}"/><text x="${lx}" y="${ly+1}" fill="${color}" font-size="8" font-weight="600">${esc(label)}</text>`
+        ? `<rect x="${(lx||0)-3}" y="${(ly||0)-8}" width="${label.length*5.1+8}" height="12" rx="2" fill="${T.editor}"/><text x="${lx||0}" y="${(ly||0)+1}" fill="${color}" font-size="8" font-weight="600">${esc(label)}</text>`
         : "";
-      return `<g opacity="${op(nodes,0.15)}">
+      return `<g opacity="${edgeLit(nodes, kind) ? 1 : 0.12}" pointer-events="none">
         <path d="${ortho(pts)}" fill="none" stroke="${color}" stroke-width="${sw}" ${dash} stroke-linecap="round" ${marker ? 'marker-end="'+marker+'"' : ""}/>
         ${start}${lab}
       </g>`;
@@ -287,44 +298,44 @@
         ${leaf(1026,720,240,32,"PagerDuty","BMN BBP basis margin LIT",["notify"])}
         ${leaf(1026,758,118,32,"Office365 SMTP","report email",["notify"])}
         ${leaf(1150,758,116,32,"SharePoint","BBP upload",["notify"])}
-        ${edge([{x:22,y:91},{x:10,y:91},{x:10,y:403},{x:14,y:403}],["wenning2","info","reports","monitor"],"1",16,100,"spine")}
-        ${edge([{x:10,y:154},{x:14,y:154}],["wenning2","info"],"","0","0","spine")}
-        ${edge([{x:10,y:246},{x:14,y:246}],["wenning2","reports"],"","0","0","spine")}
-        ${edge([{x:566,y:69},{x:582,y:69},{x:582,y:12},{x:794,y:12},{x:794,y:26}],["wenning2","nautilus"],"1 as user",640,10,"sys")}
-        ${edge([{x:566,y:69},{x:570,y:69},{x:570,y:4},{x:1160,y:4},{x:1160,y:26}],["wenning2","tolas"],"1",1040,3,"sys")}
-        ${edge([{x:566,y:246},{x:594,y:246},{x:594,y:182},{x:630,y:182}],["reports","nautilus"],"4 noon",536,244,"sys")}
-        ${edge([{x:566,y:338},{x:606,y:338},{x:606,y:98},{x:630,y:98}],["monitor","nautilus"],"2 book",536,336,"sys")}
-        ${edge([{x:966,y:182},{x:978,y:182},{x:978,y:182},{x:998,y:182}],["nautilus","tolas"],"5 orders",936,178,"sys")}
-        ${edge([{x:998,y:265},{x:978,y:265},{x:978,y:520},{x:110,y:520},{x:110,y:190}],["tolas","info"],"3 trigger",400,518,"sys")}
-        ${edge([{x:488,y:74},{x:488,y:520},{x:1146,y:520},{x:1146,y:640}],["wenning2","notify"],"","","leaf","wenning2")}
-        ${edge([{x:85,y:46},{x:85,y:2},{x:1324,y:2},{x:1324,y:578},{x:1266,y:578}],["wenning2","notify"],"","","leaf","wenning2")}
-        ${edge([{x:110,y:180},{x:110,y:560}],["info","exchanges"],"","","leaf","info")}
-        ${edge([{x:198,y:180},{x:198,y:520},{x:396,y:520},{x:396,y:560}],["info","exchanges"],"","","leaf","info")}
-        ${edge([{x:198,y:180},{x:198,y:520},{x:917,y:520},{x:917,y:598}],["info","infoplat"],"","","leaf","info")}
-        ${edge([{x:198,y:180},{x:198,y:520},{x:738,y:520},{x:738,y:636}],["info","infoplat"],"","","leaf","info")}
-        ${edge([{x:198,y:180},{x:198,y:520},{x:1146,y:520},{x:1146,y:682}],["info","notify"],"","","leaf","info")}
-        ${edge([{x:284,y:286},{x:284,y:520},{x:738,y:520},{x:738,y:712}],["reports","infoplat"],"","","leaf","reports")}
-        ${edge([{x:284,y:286},{x:284,y:520},{x:917,y:520},{x:917,y:674}],["reports","infoplat"],"","","leaf","reports")}
-        ${edge([{x:426,y:286},{x:426,y:520},{x:917,y:520},{x:917,y:712}],["reports","infoplat"],"","","leaf","reports")}
-        ${edge([{x:426,y:286},{x:426,y:520},{x:1085,y:520},{x:1085,y:758}],["reports","notify"],"","","leaf","reports")}
-        ${edge([{x:178,y:246},{x:178,y:520},{x:1208,y:520},{x:1208,y:758}],["reports","notify"],"","","leaf","reports")}
-        ${edge([{x:502,y:246},{x:502,y:560}],["reports","exchanges"],"","","leaf","reports")}
-        ${edge([{x:502,y:246},{x:502,y:520},{x:396,y:520},{x:396,y:644}],["reports","exchanges"],"","","leaf","reports")}
-        ${edge([{x:86,y:430},{x:86,y:560}],["monitor","exchanges"],"","","leaf","monitor")}
-        ${edge([{x:220,y:430},{x:220,y:520},{x:738,y:520},{x:738,y:674}],["monitor","infoplat"],"","","leaf","monitor")}
-        ${edge([{x:354,y:430},{x:354,y:520},{x:917,y:520},{x:917,y:636}],["monitor","infoplat"],"","","leaf","monitor")}
-        ${edge([{x:464,y:430},{x:464,y:520},{x:1146,y:520},{x:1146,y:682}],["monitor","notify"],"","","leaf","monitor")}
-        ${edge([{x:464,y:430},{x:464,y:520},{x:1146,y:520},{x:1146,y:720}],["monitor","notify"],"","","leaf","monitor")}
-        ${edge([{x:714,y:162},{x:714,y:560}],["nautilus","exchanges"],"","","leaf","nautilus")}
-        ${edge([{x:873,y:162},{x:873,y:560}],["nautilus","exchanges"],"","","leaf","nautilus")}
-        ${edge([{x:714,y:348},{x:714,y:520},{x:738,y:520},{x:738,y:560}],["nautilus","infoplat"],"","","leaf","nautilus")}
-        ${edge([{x:714,y:348},{x:714,y:520},{x:917,y:520},{x:917,y:560}],["nautilus","infoplat"],"","","leaf","nautilus")}
-        ${edge([{x:714,y:162},{x:714,y:520},{x:738,y:520},{x:738,y:598}],["nautilus","infoplat"],"","","leaf","nautilus")}
-        ${edge([{x:873,y:116},{x:873,y:712}],["nautilus","infoplat"],"","","leaf","nautilus")}
-        ${edge([{x:1081,y:154},{x:1081,y:560}],["tolas","exchanges"],"","","leaf","tolas")}
-        ${edge([{x:1162,y:178},{x:1162,y:520},{x:242,y:520},{x:242,y:644}],["tolas","exchanges"],"","","leaf","tolas")}
-        ${edge([{x:1238,y:196},{x:1238,y:520},{x:242,y:520},{x:242,y:602}],["tolas","exchanges"],"","","leaf","tolas")}
-        ${edge([{x:1081,y:216},{x:1081,y:644}],["tolas","exchanges"],"","","leaf","tolas")}
+        ${edge([{x:22,y:91},{x:10,y:91},{x:10,y:403},{x:14,y:403}],["wenning2","info","reports","monitor"],"spine",null,"1",16,100)}
+        ${edge([{x:10,y:154},{x:14,y:154}],["wenning2","info"],"spine")}
+        ${edge([{x:10,y:246},{x:14,y:246}],["wenning2","reports"],"spine")}
+        ${edge([{x:566,y:69},{x:582,y:69},{x:582,y:12},{x:794,y:12},{x:794,y:26}],["wenning2","nautilus"],"sys",null,"1 as user",640,10)}
+        ${edge([{x:566,y:69},{x:570,y:69},{x:570,y:4},{x:1160,y:4},{x:1160,y:26}],["wenning2","tolas"],"sys",null,"1",1040,3)}
+        ${edge([{x:566,y:246},{x:594,y:246},{x:594,y:182},{x:630,y:182}],["reports","nautilus"],"sys",null,"4 noon",536,244)}
+        ${edge([{x:566,y:338},{x:606,y:338},{x:606,y:98},{x:630,y:98}],["monitor","nautilus"],"sys",null,"2 book",536,336)}
+        ${edge([{x:966,y:182},{x:978,y:182},{x:978,y:182},{x:998,y:182}],["nautilus","tolas"],"sys",null,"5 orders",936,178)}
+        ${edge([{x:998,y:265},{x:978,y:265},{x:978,y:520},{x:110,y:520},{x:110,y:190}],["tolas","info"],"sys",null,"3 trigger",400,518)}
+        ${edge([{x:488,y:74},{x:488,y:520},{x:1146,y:520},{x:1146,y:640}],["wenning2","notify"],"leaf","wenning2")}
+        ${edge([{x:85,y:46},{x:85,y:2},{x:1324,y:2},{x:1324,y:578},{x:1266,y:578}],["wenning2","notify"],"leaf","wenning2")}
+        ${edge([{x:110,y:180},{x:110,y:560}],["info","exchanges"],"leaf","info")}
+        ${edge([{x:198,y:180},{x:198,y:520},{x:396,y:520},{x:396,y:560}],["info","exchanges"],"leaf","info")}
+        ${edge([{x:198,y:180},{x:198,y:520},{x:917,y:520},{x:917,y:598}],["info","infoplat"],"leaf","info")}
+        ${edge([{x:198,y:180},{x:198,y:520},{x:738,y:520},{x:738,y:636}],["info","infoplat"],"leaf","info")}
+        ${edge([{x:198,y:180},{x:198,y:520},{x:1146,y:520},{x:1146,y:682}],["info","notify"],"leaf","info")}
+        ${edge([{x:284,y:286},{x:284,y:520},{x:738,y:520},{x:738,y:712}],["reports","infoplat"],"leaf","reports")}
+        ${edge([{x:284,y:286},{x:284,y:520},{x:917,y:520},{x:917,y:674}],["reports","infoplat"],"leaf","reports")}
+        ${edge([{x:426,y:286},{x:426,y:520},{x:917,y:520},{x:917,y:712}],["reports","infoplat"],"leaf","reports")}
+        ${edge([{x:426,y:286},{x:426,y:520},{x:1085,y:520},{x:1085,y:758}],["reports","notify"],"leaf","reports")}
+        ${edge([{x:178,y:246},{x:178,y:520},{x:1208,y:520},{x:1208,y:758}],["reports","notify"],"leaf","reports")}
+        ${edge([{x:502,y:246},{x:502,y:560}],["reports","exchanges"],"leaf","reports")}
+        ${edge([{x:502,y:246},{x:502,y:520},{x:396,y:520},{x:396,y:644}],["reports","exchanges"],"leaf","reports")}
+        ${edge([{x:86,y:430},{x:86,y:560}],["monitor","exchanges"],"leaf","monitor")}
+        ${edge([{x:220,y:430},{x:220,y:520},{x:738,y:520},{x:738,y:674}],["monitor","infoplat"],"leaf","monitor")}
+        ${edge([{x:354,y:430},{x:354,y:520},{x:917,y:520},{x:917,y:636}],["monitor","infoplat"],"leaf","monitor")}
+        ${edge([{x:464,y:430},{x:464,y:520},{x:1146,y:520},{x:1146,y:682}],["monitor","notify"],"leaf","monitor")}
+        ${edge([{x:464,y:430},{x:464,y:520},{x:1146,y:520},{x:1146,y:720}],["monitor","notify"],"leaf","monitor")}
+        ${edge([{x:714,y:162},{x:714,y:560}],["nautilus","exchanges"],"leaf","nautilus")}
+        ${edge([{x:873,y:162},{x:873,y:560}],["nautilus","exchanges"],"leaf","nautilus")}
+        ${edge([{x:714,y:348},{x:714,y:520},{x:738,y:520},{x:738,y:560}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:714,y:348},{x:714,y:520},{x:917,y:520},{x:917,y:560}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:714,y:162},{x:714,y:520},{x:738,y:520},{x:738,y:598}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:873,y:116},{x:873,y:712}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:1081,y:154},{x:1081,y:560}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:1162,y:178},{x:1162,y:520},{x:242,y:520},{x:242,y:644}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:1238,y:196},{x:1238,y:520},{x:242,y:520},{x:242,y:602}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:1081,y:216},{x:1081,y:644}],["tolas","exchanges"],"leaf","tolas")}
       </svg>`;
     }
 
@@ -347,267 +358,20 @@
       { id:"nautilus", label:"Nautilus" },
       { id:"tolas", label:"Tolas" },
     ];
-    const DIAGRAMS = {
-      wenning2: `flowchart TB
-  subgraph S1["SERVER · AWS Sydney reports EC2 · 3.25.77.33"]
-    subgraph SYS["SYSTEM · WenningNo.2 :3978"]
-      CF["cloudflared → :3978"]
-      BOT["bot FastAPI"]
-      POL["policy + ACL"]
-      CBR["cursor_bridge"]
-      JOB["JobManager"]
-      ENV["teams-agent/.env"]
-      CF --> BOT --> POL
-      POL --> CBR
-      POL --> JOB
-      ENV --- POL
-    end
-  end
-  subgraph GN["GROUP · Notify"]
-    TEAMS["Microsoft Teams"]
-    AZ["Azure Bot Service"]
-    CUR["Cursor Cloud"]
-  end
-  subgraph HOPS["SYSTEM hops · API keys"]
-    NAU["Nautilus :5000"]
-    TOL["Tolas :5004"]
-    REP["Info / Daily / Hub / Pulse"]
-  end
-  TEAMS --> AZ -->|JWT| CF
-  CBR -->|CURSOR_API_KEY| CUR
-  CUR --> NAU
-  CUR --> TOL
-  CUR --> REP
-  JOB --> NAU
-  JOB --> TOL
-  JOB --> REP`,
-      info: `flowchart TB
-  U["Any browser · no login"]
-  subgraph S1["SERVER · AWS Sydney reports EC2 · 3.25.77.33"]
-    subgraph SYS["SYSTEM · Info Dashboard :5000"]
-      TM["okx-basis-monitor · Flask · public POST"]
-      FAV["favorites*.json"]
-      MOD["predictor models"]
-      TM --- FAV
-      TM --- MOD
-    end
-  end
-  subgraph CEFI["GROUP · CeFi"]
-    OKX["OKX"]
-    DER["Deribit"]
-  end
-  subgraph INFO["GROUP · Info"]
-    CGL["CoinGlass"]
-    TT["Token Terminal"]
-  end
-  subgraph NOT["GROUP · Notify"]
-    PA["Power Automate FLOW_URL"]
-  end
-  U --> TM
-  TM -.-> OKX
-  TM -.-> DER
-  TM -.-> CGL
-  TM -.-> TT
-  TM -.-> PA`,
-      reports: `flowchart TB
-  Browser["Analyst browser"]
-  subgraph S1["SERVER · AWS Sydney reports EC2 · 3.25.77.33"]
-    subgraph SYS["SYSTEM · Daily Report :5001–5003 + Unified + Pulse"]
-      UNI["Unified :5006"]
-      BDIF["BDIF :5001"]
-      BBP["BBP :5002"]
-      BMN["BMN :5003"]
-      PUL["Pulse :5007"]
-      DB["reports.db WAL"]
-      ENV["Auto_Report/*/env"]
-      AUTH["jellyc_auth/"]
-      UNI --> BDIF
-      UNI --> BBP
-      UNI --> BMN
-      UNI --> PUL
-      BDIF --- DB
-      BBP --- DB
-      BMN --- DB
-      ENV --- BDIF
-      AUTH --- UNI
-    end
-  end
-  subgraph INFO["GROUP · Info"]
-    NAU["Nautilus noon book"]
-    HAR["Haruko"]
-    NAV["NAV Fund Services"]
-    CMC["CoinMarketCap"]
-  end
-  subgraph NOT["GROUP · Notify"]
-    SMTP["Office365 SMTP"]
-    SP["SharePoint"]
-  end
-  subgraph CEFI["GROUP · CeFi"]
-    BIN["Binance"]
-    BYB["Bybit"]
-  end
-  Browser --> UNI
-  BDIF -.-> NAU
-  BMN -.-> NAU
-  BBP -.-> NAU
-  BDIF -.-> HAR
-  BDIF -.-> NAV
-  BMN -.-> CMC
-  BDIF -.-> SMTP
-  BBP -.-> SP
-  PUL -.-> BIN
-  PUL -.-> BYB`,
-      monitor: `flowchart TB
-  Browser["Operator browser"]
-  subgraph S1["SERVER · AWS Sydney reports EC2 · 3.25.77.33"]
-    subgraph SYS["SYSTEM · Monitor Hub :5005"]
-      HUB["Flask Hub · TOTP / API key"]
-      DCLI["dumpling_client"]
-      AUTH["jellyc_auth/"]
-      M11["BMN delta · node 11"]
-      M151["BBP exposure · node 151"]
-      M193["basis_bot · node 193"]
-      MMAR["margin_risk"]
-      MLIT["LIT price"]
-      MPOLY["Polymarket"]
-      MTVL["HL TVL"]
-      M10X["10x Pulse"]
-      HUB --> M11
-      HUB --> M151
-      HUB --> M193
-      HUB --> MMAR
-      HUB --> MLIT
-      HUB --> MPOLY
-      HUB --> MTVL
-      HUB --> M10X
-      M11 --> DCLI
-      M151 --> DCLI
-      M193 --> DCLI
-      MMAR --> DCLI
-      AUTH --- HUB
-    end
-  end
-  subgraph HOP["SYSTEM hop"]
-    NAU["Nautilus book"]
-  end
-  subgraph CEFI["GROUP · CeFi"]
-    OKX["OKX ticker"]
-  end
-  subgraph INFO["GROUP · Info"]
-    GAM["Polymarket Gamma"]
-    LL["DeFiLlama"]
-  end
-  subgraph NOT["GROUP · Notify"]
-    PA["Power Automate"]
-    PD["PagerDuty"]
-    TEAMS["Teams"]
-  end
-  Browser --> HUB
-  DCLI -->|2 book| NAU
-  MLIT -.-> OKX
-  MPOLY -.-> GAM
-  MTVL -.-> LL
-  M10X -.-> LL
-  HUB -.-> PA --> TEAMS
-  HUB -.-> PD`,
-      nautilus: `flowchart TB
-  OP["Operators / scripts · API key"]
-  subgraph S1["SERVER · AWS Sydney Nautilus EC2 · :5000 TLS"]
-    subgraph SYS["SYSTEM · Nautilus dumpling PMS"]
-      EDGE["Host edge :5000"]
-      FE["frontend nginx"]
-      BE["backend ×2"]
-      SCH["scheduler"]
-      STR["streamer"]
-      PG["Postgres 16"]
-      SEC["secrets/accounts.json"]
-      ENV[".env"]
-      CC["chain_connector"]
-      BAK["backups/ 14d"]
-      EDGE --> FE --> BE --> PG
-      SCH --> PG
-      STR --> PG
-      SEC --- SCH
-      SEC --- STR
-      ENV --- BE
-      CC --- SCH
-      PG --> BAK
-    end
-  end
-  subgraph CEFI["GROUP · CeFi"]
-    VEN["OKX Binance Deribit Kraken Gate<br/>MEXC Coinbase HL Lighter"]
-  end
-  subgraph INFO["GROUP · Info"]
-    DBK["DeBank"]
-    RPC["Public RPCs"]
-    CG["CoinGecko"]
-    HAR["Haruko backfill"]
-  end
-  subgraph HOP["SYSTEM hops"]
-    TOL["Tolas live orders"]
-    USR["Tolas users.json SSH sync"]
-  end
-  OP --> EDGE
-  SCH -.-> VEN
-  STR -.-> VEN
-  SCH -.-> DBK
-  SCH -.-> RPC
-  SCH -.-> CG
-  BE -.-> HAR
-  BE -->|5 orders| TOL
-  USR --> SEC`,
-      tolas: `flowchart TB
-  UI["Browser → :5004"]
-  subgraph S1["SERVER · AWS Tokyo Tolas EC2 · 13.231.196.249"]
-    subgraph SYS["SYSTEM · Tolas :5004"]
-      FL["Flask tolas_app.py"]
-      WRK["in-process daemons"]
-      BF["funding bots"]
-      BB["basis bots"]
-      BR["rolling bots"]
-      BI["iceberg"]
-      BX["xex"]
-      ACC["accounts.json"]
-      FILL["fills CSV + fills.db"]
-      USR["users.json + TOTP"]
-      FL --> WRK
-      FL --> BF
-      FL --> BB
-      FL --> BR
-      FL --> BI
-      FL --> BX
-      ACC --- FL
-      ACC --- BF
-      FILL --- FL
-      USR --- FL
-    end
-  end
-  subgraph CEFI["GROUP · CeFi"]
-    OKX["OKX"]
-    LTR["Lighter"]
-    MXC["MEXC"]
-    HL["Hyperliquid"]
-  end
-  subgraph HOP["SYSTEM hops"]
-    INFO["Info Dashboard · trigger"]
-    NAU["Nautilus · live orders"]
-  end
-  UI --> FL
-  BF -.-> OKX
-  BF -.-> LTR
-  BF -.-> HL
-  BI -.-> MXC
-  FL -->|3 trigger| INFO
-  NAU -->|5 orders| FL`,
-    };
+    const DIAGRAMS = {"wenning2": [{"title": "Host topology", "src": "flowchart TB\n  subgraph S1[\"SERVER · AWS Sydney reports EC2 · 3.25.77.33\"]\n    subgraph SYS[\"SYSTEM · WenningNo.2 :3978\"]\n      CF[\"cloudflared → :3978\"]\n      BOT[\"bot FastAPI\"]\n      POL[\"policy + ACL\"]\n      CBR[\"cursor_bridge\"]\n      JOB[\"JobManager\"]\n      ENV[\"teams-agent/.env\"]\n      CF --> BOT --> POL\n      POL --> CBR\n      POL --> JOB\n      ENV --- POL\n    end\n  end\n  subgraph GN[\"GROUP · Notify\"]\n    TEAMS[\"Microsoft Teams\"]\n    AZ[\"Azure Bot Service\"]\n    CUR[\"Cursor Cloud\"]\n  end\n  subgraph HOPS[\"SYSTEM hops · API keys\"]\n    NAU[\"Nautilus :5000\"]\n    TOL[\"Tolas :5004\"]\n    REP[\"Info / Daily / Hub / Pulse\"]\n  end\n  TEAMS --> AZ -->|JWT| CF\n  CBR -->|CURSOR_API_KEY| CUR\n  CUR --> NAU\n  CUR --> TOL\n  CUR --> REP\n  JOB --> NAU\n  JOB --> TOL\n  JOB --> REP"}, {"title": "How a request runs", "src": "sequenceDiagram\n  participant U as Teams user\n  participant T as Teams / Azure Bot\n  participant B as WenningNo.2 bot\n  participant P as Policy + ACL\n  participant C as Cursor API\n  participant W as Cursor workplace VM\n  participant H as tolas / reports / dumpling\n\n  U->>T: chat message\n  T->>B: POST /api/messages (Bot JWT)\n  B->>P: classify + mutation ACL\n  alt reject secret/code\n    P-->>U: refuse\n  else need confirm mutation\n    P-->>U: Adaptive Card / confirm\n  else allow cursor_workplace\n    B->>C: create / follow-up agent run\n    C->>W: agent + AGENTS.md / allowlist\n    W->>H: frontend-equivalent HTTP\n    C-->>B: run FINISHED + result\n    B-->>U: proactive Teams reply\n  else allow local mode\n    B->>H: JobManager + clients\n    B-->>U: job result\n  end"}, {"title": "Trust boundaries & secrets", "src": "flowchart LR\n  subgraph External\n    Teams\n    CursorAPI[\"api.cursor.com\"]\n  end\n  subgraph BotHost[\"reports EC2 bot\"]\n    BF[\"Bot Framework adapter\"]\n    Pol[\"policy / acl / allowlist\"]\n    Env[\".env keys\"]\n    State[\"state/*.json\"]\n  end\n  subgraph Workplace[\"Cursor env VM\"]\n    Agents[\"AGENTS.md soft boundary\"]\n    Keys[\"product API keys\"]\n  end\n  subgraph Products\n    Tolas\n    Reports\n    Nautilus\n  end\n\n  Teams -->|JWT| BF\n  BF --> Pol\n  Pol -->|CURSOR_API_KEY| CursorAPI\n  CursorAPI --> Agents\n  Env --> Pol\n  Keys --> Tolas\n  Keys --> Reports\n  Keys --> Nautilus\n  Pol -.->|local mode| Tolas"}, {"title": "Overview", "src": "flowchart LR\n  TeamsUser --> MicrosoftTeams\n  MicrosoftTeams --> AzureBotService\n  AzureBotService -->|JWT /api/messages :3978| WenningNo2Bot\n  WenningNo2Bot --> PolicyACL\n  PolicyACL -->|local| LocalJobQueue\n  PolicyACL -->|workplace| CursorBridge\n  CursorBridge -->|CURSOR_API_KEY| CursorCloudAPI\n  CursorCloudAPI --> CursorWorkplace\n  CursorWorkplace --> TolasAPI\n  CursorWorkplace --> ReportsAPIs\n  CursorWorkplace --> DumplingAPI\n  LocalJobQueue --> TolasAPI\n  LocalJobQueue --> ReportsAPIs\n  LocalJobQueue --> DumplingAPI\n  CursorBridge --- SessionStore\n  LocalJobQueue --- JobStore"}], "info": [{"title": "Trust-boundary diagram", "src": "flowchart TB\n  U[\"Any browser · no login\"]\n  subgraph S1[\"SERVER · AWS Sydney reports EC2 · 3.25.77.33\"]\n    subgraph SYS[\"SYSTEM · Info Dashboard :5000\"]\n      TM[\"okx-basis-monitor · Flask · public POST\"]\n      FAV[\"favorites*.json\"]\n      MOD[\"predictor models\"]\n      TM --- FAV\n      TM --- MOD\n    end\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    OKX[\"OKX\"]\n    DER[\"Deribit\"]\n  end\n  subgraph INFO[\"GROUP · Info\"]\n    CGL[\"CoinGlass\"]\n    TT[\"Token Terminal\"]\n  end\n  subgraph NOT[\"GROUP · Notify\"]\n    PA[\"Power Automate FLOW_URL\"]\n  end\n  U --> TM\n  TM -.-> OKX\n  TM -.-> DER\n  TM -.-> CGL\n  TM -.-> TT\n  TM -.-> PA"}, {"title": "Data-flow / abuse-path", "src": "sequenceDiagram\n  participant A as Anonymous client\n  participant TM as :5000 Flask\n  participant Disk as /app/data favorites*.json\n  participant UP as OKX / CoinGlass / TT\n  participant Teams as Power Automate webhook\n\n  Note over A,TM: No session, API key, CSRF token, or IP allowlist\n\n  A->>TM: GET /api/favorites (and siblings)\n  TM->>Disk: read\n  TM-->>A: full favorites list\n\n  A->>TM: POST /api/favorites {\"favorites\":[…]}\n  TM->>Disk: overwrite shared JSON\n  TM-->>A: success (integrity loss / wipe)\n\n  A->>TM: POST /api/send-favorites-to-teams\n  TM->>UP: fetch live rates for supplied symbols\n  TM->>Teams: POST Adaptive Card\n  Note right of Teams: Spam / phishing into org channel<br/>Webhook is effective credential\n\n  A->>TM: POST /api/predicted-funding/refresh\n  TM-->>A: refresh queued (CPU / upstream DoS assist)\n\n  A->>TM: GET /api/spread-history?… (poll)\n  TM->>UP: fan-out / cache miss\n  TM-->>A: market data (info disclosure OK if intentional)"}], "reports": [{"title": "Host / process map", "src": "flowchart TB\n  Browser[\"Analyst browser\"]\n  subgraph S1[\"SERVER · AWS Sydney reports EC2 · 3.25.77.33\"]\n    subgraph SYS[\"SYSTEM · Daily Report :5001–5003 + Unified + Pulse\"]\n      UNI[\"Unified :5006\"]\n      BDIF[\"BDIF :5001\"]\n      BBP[\"BBP :5002\"]\n      BMN[\"BMN :5003\"]\n      PUL[\"Pulse :5007\"]\n      DB[\"reports.db WAL\"]\n      ENV[\"Auto_Report/*/env\"]\n      AUTH[\"jellyc_auth/\"]\n      UNI --> BDIF\n      UNI --> BBP\n      UNI --> BMN\n      UNI --> PUL\n      BDIF --- DB\n      BBP --- DB\n      BMN --- DB\n      ENV --- BDIF\n      AUTH --- UNI\n    end\n  end\n  subgraph INFO[\"GROUP · Info\"]\n    NAU[\"Nautilus noon book\"]\n    HAR[\"Haruko\"]\n    NAV[\"NAV Fund Services\"]\n    CMC[\"CoinMarketCap\"]\n  end\n  subgraph NOT[\"GROUP · Notify\"]\n    SMTP[\"Office365 SMTP\"]\n    SP[\"SharePoint\"]\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    BIN[\"Binance\"]\n    BYB[\"Bybit\"]\n  end\n  Browser --> UNI\n  BDIF -.-> NAU\n  BMN -.-> NAU\n  BBP -.-> NAU\n  BDIF -.-> HAR\n  BDIF -.-> NAV\n  BMN -.-> CMC\n  BDIF -.-> SMTP\n  BBP -.-> SP\n  PUL -.-> BIN\n  PUL -.-> BYB"}, {"title": "Repository structure", "src": "flowchart LR\n  subgraph Apps[\"Fund apps\"]\n    BMN[\"BMN_Daily_Report/\"]\n    BBP[\"BBP_Daily_Report/\"]\n    BDIF[\"BDIF_Daily_Report/\"]\n    BASIS[\"Basis_Bot_Daily_Report/\"]\n  end\n\n  subgraph Front[\"Entry / Pulse\"]\n    UNI[\"Unified_Dashboard/\"]\n    PUL[\"bdif-pulse-dashboard/\"]\n  end\n\n  subgraph Shared[\"Shared libraries\"]\n    AUTH[\"Shared_Auth/\"]\n    DB[\"common/db/\"]\n    WEB[\"common/web/\"]\n    PR[\"common/pricing/\"]\n    SDK[\"python_SDK/ Haruko\"]\n  end\n\n  subgraph Ops[\"Ops\"]\n    DEP[\"deploy/\"]\n    DATA[\"data/ reports.db gitignored\"]\n    TST[\"tests/\"]\n  end\n\n  Apps --> Shared\n  Front --> Shared\n  DEP --> Apps"}, {"title": "How a request runs", "src": "flowchart TB\n  subgraph T1[\"Trust: Internet\"]\n    U[\"User + password + TOTP\"]\n  end\n\n  subgraph T2[\"Trust: EC2 Flask fleet\"]\n    LOGIN[\"POST /login<br/>session cookie jellyc_session<br/>HttpOnly, SameSite=Lax<br/>SECURE=off if AUTH_HTTPS=0\"]\n    GATE[\"before_request require_login\"]\n    API[\"Any logged-in user:<br/>generate / delete / email / capital_flow\"]\n  end\n\n  subgraph T3[\"Trust: external APIs\"]\n    DUMP[\"Dumpling<br/>HTTP default + Bearer DUMPLING_API_KEY\"]\n    HAR[\"Haruko HTTPS<br/>HARUKO_KEY\"]\n    NAV[\"NAV Fund Services HTTPS<br/>HMAC NAV_API_KEY/SECRET\"]\n    SMTP[\"Office365 SMTP<br/>EMAIL_*\"]\n    CMC[\"CMC public HTTPS\"]\n    SP[\"SharePoint Graph optional BBP<br/>AZURE_*\"]\n  end\n\n  subgraph T4[\"Trust: data plane\"]\n    SQLITE[(\"reports.db WAL<br/>snapshots, capital_flows,<br/>reports index, NAV cache\")]\n    FILES[\"reports/*.txt on disk\"]\n  end\n\n  U --> LOGIN --> GATE --> API\n  API --> DUMP & HAR & NAV & SMTP & CMC & SP\n  API --> SQLITE & FILES"}, {"title": "Where secrets and data are held", "src": "flowchart TB\n  subgraph Secrets[\"Secrets\"]\n    ENVF[\"Host: Auto_Report/*/env<br/>DUMPLING_API_KEY, HARUKO_KEY,<br/>NAV_*, EMAIL_*, AZURE_*\"]\n    IMG[\"Docker image COPY env<br/>baked at build — residual risk\"]\n    AUTHST[\"jellyc_auth/<br/>users.json, secret_key\"]\n  end\n\n  subgraph Persist[\"Authoritative persistence\"]\n    DB[(\"auto-report-data/reports.db<br/>→ container /data/reports.db\")]\n    RPT[\"reports/ *.txt report bodies\"]\n    PULSEDB[(\"pulse state/pulse.db\")]\n  end\n\n  ENVF -->|ro mount /app/env| CTR[\"Fund containers\"]\n  AUTHST -->|mount /app/state| CTR\n  DB -->|rw /data| CTR\n  RPT --> CTR"}], "monitor": [{"title": "Structure", "src": "flowchart TB\n  Browser[\"Operator browser\"]\n  subgraph S1[\"SERVER · AWS Sydney reports EC2 · 3.25.77.33\"]\n    subgraph SYS[\"SYSTEM · Monitor Hub :5005\"]\n      HUB[\"Flask Hub · TOTP / API key\"]\n      DCLI[\"dumpling_client\"]\n      AUTH[\"jellyc_auth/\"]\n      M11[\"BMN delta · node 11\"]\n      M151[\"BBP exposure · node 151\"]\n      M193[\"basis_bot · node 193\"]\n      MMAR[\"margin_risk\"]\n      MLIT[\"LIT price\"]\n      MPOLY[\"Polymarket\"]\n      MTVL[\"HL TVL\"]\n      M10X[\"10x Pulse\"]\n      HUB --> M11\n      HUB --> M151\n      HUB --> M193\n      HUB --> MMAR\n      HUB --> MLIT\n      HUB --> MPOLY\n      HUB --> MTVL\n      HUB --> M10X\n      M11 --> DCLI\n      M151 --> DCLI\n      M193 --> DCLI\n      MMAR --> DCLI\n      AUTH --- HUB\n    end\n  end\n  subgraph HOP[\"SYSTEM hop\"]\n    NAU[\"Nautilus book\"]\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    OKX[\"OKX ticker\"]\n  end\n  subgraph INFO[\"GROUP · Info\"]\n    GAM[\"Polymarket Gamma\"]\n    LL[\"DeFiLlama\"]\n  end\n  subgraph NOT[\"GROUP · Notify\"]\n    PA[\"Power Automate\"]\n    PD[\"PagerDuty\"]\n    TEAMS[\"Teams\"]\n  end\n  Browser --> HUB\n  DCLI -->|2 book| NAU\n  MLIT -.-> OKX\n  MPOLY -.-> GAM\n  MTVL -.-> LL\n  M10X -.-> LL\n  HUB -.-> PA --> TEAMS\n  HUB -.-> PD"}, {"title": "Runtime sequence", "src": "sequenceDiagram\n  participant Op as Operator\n  participant Hub as Flask Hub\n  participant PM as process_manager\n  participant Mon as Monitor child\n  participant API as External API\n  participant Alert as Teams or PagerDuty\n\n  Op->>Hub: login password+TOTP or API key\n  Op->>Hub: POST start monitor\n  Hub->>PM: start id\n  PM->>Mon: Popen python script\n  loop poll interval\n    Mon->>API: fetch\n    API-->>Mon: JSON\n    alt breach confirmed\n      Mon->>Alert: notify\n    end\n  end\n  Op->>Hub: POST config writes env"}, {"title": "Trust boundaries", "src": "flowchart LR\n  TB1[\"TB1 Internet can reach :5005\"]\n  TB2[\"TB2 Authenticated Hub\"]\n  TB3[\"TB3 Container and host mount secrets\"]\n  TB4[\"TB4 Dumpling API key TLS verify often off\"]\n  TB5[\"TB5 FLOW_URL and PagerDuty routing key\"]\n\n  TB1 --> TB2\n  TB2 --> TB3\n  TB3 --> TB4\n  TB3 --> TB5"}], "nautilus": [{"title": "System landscape", "src": "flowchart TB\n  OP[\"Operators / scripts · API key\"]\n  subgraph S1[\"SERVER · AWS Sydney Nautilus EC2 · :5000 TLS\"]\n    subgraph SYS[\"SYSTEM · Nautilus dumpling PMS\"]\n      EDGE[\"Host edge :5000\"]\n      FE[\"frontend nginx\"]\n      BE[\"backend ×2\"]\n      SCH[\"scheduler\"]\n      STR[\"streamer\"]\n      PG[\"Postgres 16\"]\n      SEC[\"secrets/accounts.json\"]\n      ENV[\".env\"]\n      CC[\"chain_connector\"]\n      BAK[\"backups/ 14d\"]\n      EDGE --> FE --> BE --> PG\n      SCH --> PG\n      STR --> PG\n      SEC --- SCH\n      SEC --- STR\n      ENV --- BE\n      CC --- SCH\n      PG --> BAK\n    end\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    VEN[\"OKX Binance Deribit Kraken Gate<br/>MEXC Coinbase HL Lighter\"]\n  end\n  subgraph INFO[\"GROUP · Info\"]\n    DBK[\"DeBank\"]\n    RPC[\"Public RPCs\"]\n    CG[\"CoinGecko\"]\n    HAR[\"Haruko backfill\"]\n  end\n  subgraph HOP[\"SYSTEM hops\"]\n    TOL[\"Tolas live orders\"]\n    USR[\"Tolas users.json SSH sync\"]\n  end\n  OP --> EDGE\n  SCH -.-> VEN\n  STR -.-> VEN\n  SCH -.-> DBK\n  SCH -.-> RPC\n  SCH -.-> CG\n  BE -.-> HAR\n  BE -->|5 orders| TOL\n  USR --> SEC"}, {"title": "How a request is served", "src": "flowchart LR\n    subgraph UI[\"frontend — React + Ant Design + AG Grid\"]\n        LOGIN[Login<br/>email + password + TOTP]\n        DASH[Funds dashboard]\n        SUM[Summary<br/>equity delta positions margin]\n        RISK[Risk Pivot]\n        PNL[P&L Report]\n        ACT[Trades and Transfers<br/>on-chain txs · adjustments]\n        ADD[Add account / add transfer]\n        CSV[CSV export]\n    end\n\n    subgraph Nginx[\"frontend container\"]\n        NGX[\"nginx :80<br/>host :5000\"]\n        DOCS[\"/docs /openapi.json<br/>unauthenticated\"]\n        HLTH[\"/api/health<br/>unauthenticated\"]\n    end\n\n    subgraph API[\"backend — FastAPI /api\"]\n        AUTH[auth.py<br/>login logout me]\n        NODES[\"nodes.py<br/>nodes summary risk pnl<br/>trades transfers txs captures\"]\n        EXP[export.py<br/>history CSVs]\n        BOOK[book_admin.py<br/>accounts transfers]\n        MW[auth middleware<br/>session cookie or API key<br/>RBAC + node_closure]\n    end\n\n    subgraph Core[\"backend services — derived, not stored\"]\n        HIER[hierarchy + closure]\n        AGG[aggregation / valuation]\n        RP[riskpnl + attribution]\n        FLOW[flows / movements]\n        QUAL[data quality]\n        PRICE[pricing waterfall]\n        BA[book_admin writes]\n    end\n\n    LOGIN --> NGX\n    DASH & SUM & RISK & PNL & ACT & ADD & CSV --> NGX\n    NGX --> AUTH & NODES & EXP & BOOK\n    NGX --> DOCS & HLTH\n    AUTH & NODES & EXP & BOOK --> MW\n    MW --> HIER & AGG & RP & FLOW & QUAL & PRICE & BA"}, {"title": "How the book is filled", "src": "flowchart TB\n    subgraph Scheduler[\"scheduler — python -m app.scheduler\"]\n        H[Hourly capture :02<br/>importers.refresh]\n        C[Live CeFi ~60s<br/>venue balances + prices]\n        D[Live DeFi hourly<br/>wallets / DeBank / RPCs]\n        R[Repricing every minute<br/>wallet + static valued at live books]\n        P[Daily price book 03:00 UTC+8<br/>unquoted assets]\n        S[Static + accrual<br/>effective-dated entries]\n    end\n\n    subgraph Streamer[\"streamer — python -m app.streamer\"]\n        WS[\"One WS thread per account<br/>OKX Binance Deribit Kraken Gate Hyperliquid\"]\n        WR[Single writer thread<br/>batched commits ~1s]\n        POLL[\"HTTP poll fallback ~60s<br/>venues with no private stream<br/>+ any dead socket\"]\n        RS[Resync on connect<br/>gap around disconnects]\n    end\n\n    subgraph Manual[\"Manual / migration — docker compose exec\"]\n        HA[importers.activity<br/>Haruko trades + transfers]\n        VA[importers.venue_activity<br/>venue history backfill]\n        CA[importers.chain_activity<br/>DeBank history]\n        ST[statics / wallets / prices]\n        FIX[\"repair / classify / validate / prune\"]\n    end\n\n    subgraph Adapters[\"Adapters on RO mounts\"]\n        VEN[\"validation/venues/<br/>10 HTTP adapters\"]\n        STM[\"validation/venues/streams/<br/>6 WS feeds\"]\n        CH[\"chain_connector/<br/>DeBank + non-EVM RPCs\"]\n    end\n\n    C --> VEN\n    H --> VEN\n    H --> CH\n    D --> CH\n    WS --> STM\n    POLL --> VEN\n    RS --> VEN\n    HA -.->|HARUKO_KEY on backend only| HARUKO[Haruko]\n    VA --> VEN\n    CA --> CH\n    STM --> WR\n    POLL --> WR"}, {"title": "What Postgres holds", "src": "erDiagram\n    NODE ||--o{ ACCOUNT_DETAIL : \"account layer\"\n    NODE ||--o{ NODE_CLOSURE : \"ancestor path\"\n    NODE ||--o{ CAPTURE : \"hourly / live\"\n    CAPTURE ||--o{ BALANCE_ROW : has\n    CAPTURE ||--o{ POSITION_ROW : has\n    CAPTURE ||--o{ MARGIN_ROW : has\n    NODE ||--o{ TRADE : \"fills\"\n    NODE ||--o{ CAPITAL_FLOW : \"transfers\"\n    NODE ||--o{ BALANCE_ADJUSTMENT : \"manual / accrual\"\n    NODE ||--o{ CHAIN_TRANSACTION : \"on-chain legs\"\n    NODE ||--o{ STATIC_BALANCE_ENTRY : \"effective-dated\"\n    STATIC_BALANCE_ENTRY ||--o{ STATIC_ACCRUAL : rules\n    NODE ||--o{ EQUITY_POINT : derived\n    APP_USER ||--o{ USER_SESSION : sessions\n    APP_USER ||--o{ API_KEY : \"hashed dmp_\"\n    APP_USER ||--o{ USER_NODE_ACCESS : grants\n    APP_USER ||--o{ AUDIT_EVENT : audit\n\n    NODE {\n        int id\n        string name\n        string external_ref\n    }\n    CAPTURE {\n        timestamptz capture_ts\n        bool is_live\n    }\n    TRADE {\n        string trade_key UK\n        string source_type\n    }\n    CAPITAL_FLOW {\n        string external_id\n        string classification\n    }"}, {"title": "Identity, secrets, and access", "src": "flowchart TB\n    subgraph Tokyo[\"Tolas Tokyo\"]\n        U[(users.json<br/>bcrypt + TOTP)]\n        SK[Flask / jellyc secret_key]\n    end\n\n    subgraph Sync[\"ops/sync_jellyc_auth.sh\"]\n        SSH[SSH over PEMs]\n    end\n\n    subgraph Mount[\"Sydney secrets/ → /srv/secrets RO\"]\n        JA[jellyc_auth/users.json]\n        ACC[accounts.json<br/>venue API keys]\n    end\n\n    subgraph AuthN[\"backend auth\"]\n        LOGIN[POST /auth/login]\n        COOKIE[\"cookie dumpling_session<br/>HttpOnly Lax Secure=false\"]\n        KEY[\"API key dmp_…<br/>SHA-256 in api_key\"]\n        RL[in-process fail lockout<br/>not shared across 2 workers]\n    end\n\n    subgraph AuthZ[\"RBAC + scope\"]\n        ROLE[\"VIEWER < OPERATOR < ADMIN\"]\n        GRANT[user_node_access]\n        CLOS[node_closure]\n        DEF[\"JELLYC_DEFAULT_ROLE=ADMIN\"]\n    end\n\n    U --> SSH --> JA\n    SK --> SSH\n    JA --> LOGIN\n    LOGIN --> COOKIE\n    LOGIN --> RL\n    KEY --> ROLE\n    COOKIE --> ROLE\n    ROLE --> GRANT --> CLOS\n    DEF --> ROLE\n    ACC --> SCH[scheduler / streamer venue calls]"}], "tolas": [{"title": "Deployment & trust boundaries", "src": "flowchart TB\n  UI[\"Browser → :5004\"]\n  subgraph S1[\"SERVER · AWS Tokyo Tolas EC2 · 13.231.196.249\"]\n    subgraph SYS[\"SYSTEM · Tolas :5004\"]\n      FL[\"Flask tolas_app.py\"]\n      WRK[\"in-process daemons\"]\n      BF[\"funding bots\"]\n      BB[\"basis bots\"]\n      BR[\"rolling bots\"]\n      BI[\"iceberg\"]\n      BX[\"xex\"]\n      ACC[\"accounts.json\"]\n      FILL[\"fills CSV + fills.db\"]\n      USR[\"users.json + TOTP\"]\n      FL --> WRK\n      FL --> BF\n      FL --> BB\n      FL --> BR\n      FL --> BI\n      FL --> BX\n      ACC --- FL\n      ACC --- BF\n      FILL --- FL\n      USR --- FL\n    end\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    OKX[\"OKX\"]\n    LTR[\"Lighter\"]\n    MXC[\"MEXC\"]\n    HL[\"Hyperliquid\"]\n  end\n  subgraph HOP[\"SYSTEM hops\"]\n    INFO[\"Info Dashboard · trigger\"]\n    NAU[\"Nautilus · live orders\"]\n  end\n  UI --> FL\n  BF -.-> OKX\n  BF -.-> LTR\n  BF -.-> HL\n  BI -.-> MXC\n  FL -->|3 trigger| INFO\n  NAU -->|5 orders| FL"}, {"title": "Process & data flow", "src": "sequenceDiagram\n  participant Op as Operator\n  participant T as Tolas Flask :5004\n  participant Reg as accounts.json\n  participant Bot as Bot process\n  participant Ex as Exchange APIs\n  participant CSV as bot_dir/*_log_*.csv\n  participant SQL as state/fills.db\n\n  Op->>T: login (password + TOTP)\n  Op->>T: set params / start bot\n  T->>Reg: resolve LEG_*_ACCOUNT (+ fund tag check)\n  T->>Bot: spawn with injected OKX_/LIGHTER_/… env\n  Bot->>Ex: WS/REST orders & hedges\n  Bot->>CSV: append-only fills (hot-path SoT)\n  Note over Bot,CSV: No SQL write on trading path\n  T->>CSV: read for live UI / history\n  T->>SQL: async ingest (fingerprint size:mtime_ns)\n  T->>Ex: signed reads (fills, candles, verify)"}, {"title": "Authentication surfaces", "src": "flowchart LR\n  subgraph Open[\"Unauthenticated at app layer\"]\n    L[\"/login /logout\"]\n    H[\"/healthz\"]\n    S[\"/static/*\"]\n    V1[\"/api/v1/*  ← NO TOTP<br/>network IP gate only\"]\n  end\n\n  subgraph Gated[\"Session required (password + TOTP)\"]\n    Dash[\"/  UI\"]\n    API[\"/api/*  dashboard JSON\"]\n    Acc[\"/accounts CRUD\"]\n  end\n\n  Open --> Net[\"Must be SG / nginx restricted\"]\n  Gated --> Cookie[\"Signed session cookie<br/>secret_key in AUTH_STATE_DIR\"]"}]};
     const drawn = {};
     function showTab(id) {
       document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.dataset.panel !== id; });
       document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.tab === id));
       if (id !== "fleet" && DIAGRAMS[id] && !drawn[id] && window.mermaid) {
-        const el = document.getElementById("m-" + id);
-        el.textContent = DIAGRAMS[id];
-        window.mermaid.run({ nodes: [el] });
+        const host = document.getElementById("charts-" + id);
+        host.innerHTML = DIAGRAMS[id].map((d, i) =>
+          `<h2 class="chart-title">${d.title}</h2><div class="mermaid" id="m-${id}-${i}"></div>`
+        ).join("");
+        DIAGRAMS[id].forEach((d, i) => {
+          document.getElementById("m-" + id + "-" + i).textContent = d.src;
+        });
+        window.mermaid.run({ nodes: [...host.querySelectorAll(".mermaid")] });
         drawn[id] = true;
       }
     }
