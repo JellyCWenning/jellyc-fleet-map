@@ -33,9 +33,28 @@
     .mermaid { background: #1a1a1a; border: 1px solid var(--stroke); border-radius: 8px; padding: 12px; overflow: auto; }
     h2.chart-title { font-size: 16px; line-height: 22px; font-weight: 600; margin: 28px 0 10px; }
     .charts h2.chart-title:first-child { margin-top: 8px; }
+    body.locked .wrap { display: none; }
+    #gate { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    body:not(.locked) #gate { display: none; }
+    .gate-card { width: 100%; max-width: 360px; background: var(--elev); border: 1px solid var(--stroke); border-radius: 10px; padding: 22px 20px; }
+    .gate-card h1 { font-size: 20px; }
+    .gate-card label { display: block; color: var(--muted); font-size: 12px; margin: 0 0 6px; }
+    .gate-card input { width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text); border: 1px solid var(--stroke); border-radius: 6px; padding: 8px 10px; font: inherit; }
+    .gate-card button { margin-top: 12px; width: 100%; border: 1px solid var(--accent); background: #1a2838; color: var(--accent); border-radius: 6px; padding: 8px 10px; cursor: pointer; font: inherit; }
+    .gate-err { color: #fc6b83; font-size: 12px; margin: 10px 0 0; }
   </style>
 </head>
-<body>
+<body class="locked">
+  <div id="gate">
+    <form class="gate-card" id="gate-form">
+      <h1>JellyC fleet</h1>
+      <p class="lead">Enter the shared password to open the map.</p>
+      <label for="gate-pw">Password</label>
+      <input id="gate-pw" type="password" autocomplete="current-password" autofocus />
+      <button type="submit">Open</button>
+      <p class="gate-err" id="gate-err" hidden>Wrong password.</p>
+    </form>
+  </div>
   <div class="wrap">
     <div class="tabs" id="tabs"></div>
     <div class="panel" data-panel="fleet">
@@ -80,6 +99,20 @@
     </div>
   </div>
   <script>
+    const GATE_KEY = "jellyc-fleet-ok";
+    function unlock() {
+      document.body.classList.remove("locked");
+    }
+    if (sessionStorage.getItem(GATE_KEY) === "1") unlock();
+    document.getElementById("gate-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (document.getElementById("gate-pw").value === "Jellyc123") {
+        sessionStorage.setItem(GATE_KEY, "1");
+        unlock();
+      } else {
+        document.getElementById("gate-err").hidden = false;
+      }
+    });
     const HUE = { wenning2:"#9386F2", info:"#81A1C1", reports:"#F1B467", monitor:"#DD7F76", nautilus:"#7BAFE9", tolas:"#3FA266", exchanges:"#B48EAD", infoplat:"#E4E4E48A", notify:"#FC6B83" };
     const FOCI = [
       { id:"all", label:"All" },
