@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JellyC fleet · three levels</title>
+  <style>
+    :root {
+      --bg: #141414;
+      --elev: #1c1c1c;
+      --text: #e4e4e4;
+      --muted: #8a8a8a;
+      --stroke: #3d3d3d;
+      --accent: #7bafe9;
+      --fill3: #2a2a2a;
+    }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/20px ui-sans-serif, system-ui, sans-serif; }
+    .wrap { max-width: 1340px; margin: 0 auto; padding: 20px 16px 40px; }
+    h1 { font-size: 24px; line-height: 30px; font-weight: 600; margin: 0 0 8px; }
+    .lead { color: #c8c8c8; margin: 0 0 16px; }
+    .note { background: #1a2838; border: 1px solid #2a4a66; border-radius: 8px; padding: 12px 14px; margin: 0 0 16px; color: #c5d4e4; }
+    .note strong { color: var(--accent); display: block; margin-bottom: 4px; }
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--stroke); background: var(--elev); color: var(--text); border-radius: 999px; padding: 4px 10px; cursor: pointer; font-size: 13px; }
+    .pill.on { border-color: var(--accent); color: var(--accent); }
+    .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+    svg { display: block; width: 100%; height: auto; }
+    .map { background: var(--bg); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>JellyC fleet · three levels</h1>
+    <p class="lead">Level 1 SERVER. Level 2 SYSTEM (or GROUP for externals). Level 3 is a process inside a system, or a named provider inside a group.</p>
+    <div class="note">
+      <strong>Solid vs dashed</strong>
+      Solid accent arrows are SYSTEM → SYSTEM hops (API keys): 1 WenningNo.2 as user · 2 Monitor → Nautilus book · 3 Tolas → Info Dashboard · 4 Daily Report → noon book · 5 Nautilus → Tolas live orders. Dashed arrows are a process calling a concrete provider — okx-basis-monitor → OKX, scheduler → venues, LIT → OKX ticker, bots → Lighter. They are not fleet hops. Dashed color matches the calling system.
+    </div>
+    <div class="pills" id="pills"></div>
+    <div class="map" id="map"></div>
+  </div>
+  <script>
+    const HUE = { wenning2:"#9386F2", info:"#81A1C1", reports:"#F1B467", monitor:"#DD7F76", nautilus:"#7BAFE9", tolas:"#3FA266", exchanges:"#B48EAD", infoplat:"#E4E4E48A", notify:"#FC6B83" };
+    const FOCI = [
+      { id:"all", label:"All" },
+      { id:"wenning2", label:"WenningNo.2", hue:"wenning2" },
+      { id:"info", label:"Info Dashboard", hue:"info" },
+      { id:"reports", label:"Daily Report", hue:"reports" },
+      { id:"monitor", label:"Monitor", hue:"monitor" },
+      { id:"nautilus", label:"Nautilus", hue:"nautilus" },
+      { id:"tolas", label:"Tolas", hue:"tolas" },
+      { id:"exchanges", label:"CeFi group", hue:"exchanges" },
+      { id:"infoplat", label:"Info group", hue:"infoplat" },
+      { id:"notify", label:"Notify group", hue:"notify" },
+    ];
+    const RELATED = {
+      all:[], wenning2:["notify"], info:["exchanges","infoplat","notify"], reports:["exchanges","infoplat","notify"],
+      monitor:["exchanges","infoplat","notify"], nautilus:["exchanges","infoplat"], tolas:["exchanges"],
+      exchanges:["nautilus","tolas","info","reports","monitor"], infoplat:["nautilus","info","monitor","reports"],
+      notify:["wenning2","info","monitor","reports"],
+    };
+    const T = { text:"#e4e4e4", muted:"#8a8a8a", elev:"#1c1c1c", editor:"#141414", fill3:"#2a2a2a", stroke:"#5a5a5a", stroke2:"#3d3d3d", accent:"#7bafe9" };
+    let focus = "all";
+
+    function lit(nodes) {
+      if (focus === "all") return true;
+      if (nodes.includes(focus)) return true;
+      return nodes.some((n) => (RELATED[focus] || []).includes(n));
+    }
+    function op(nodes, faded) { return lit(nodes) ? 1 : faded; }
+    function ortho(pts, r) {
+      r = r || 5;
+      if (pts.length < 2) return "";
+      let d = "M" + pts[0].x + "," + pts[0].y;
+      for (let i = 1; i < pts.length; i++) {
+        const prev = pts[i - 1], cur = pts[i], next = pts[i + 1];
+        if (!next) { d += " L" + cur.x + "," + cur.y; break; }
+        const len1 = Math.hypot(cur.x - prev.x, cur.y - prev.y);
+        const len2 = Math.hypot(next.x - cur.x, next.y - cur.y);
+        const rr = Math.min(r, len1 / 2, len2 / 2);
+        if (rr < 1) { d += " L" + cur.x + "," + cur.y; continue; }
+        d += " L" + (cur.x - ((cur.x - prev.x) / len1) * rr) + "," + (cur.y - ((cur.y - prev.y) / len1) * rr);
+        d += " Q" + cur.x + "," + cur.y + " " + (cur.x + ((next.x - cur.x) / len2) * rr) + "," + (cur.y + ((next.y - cur.y) / len2) * rr);
+      }
+      return d;
+    }
+    function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+    function pick(id) { focus = focus === id ? "all" : id; render(); }
+
+    function server(x,y,w,h,title,nodes) {
+      return `<g opacity="${op(nodes,0.36)}">
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${T.fill3}" stroke="${T.stroke2}"/>
+        <text x="${x+10}" y="${y+16}" fill="${T.muted}" font-size="9" font-weight="600">SERVER</text>
+        <text x="${x+62}" y="${y+16}" fill="${T.text}" font-size="11" font-weight="600">${esc(title)}</text>
+      </g>`;
+    }
+    function system(x,y,w,h,title,nodes,hue) {
+      const tint = HUE[hue];
+      const on = focus !== "all" && nodes.includes(focus);
+      return `<g opacity="${op(nodes,0.15)}" style="cursor:pointer" data-focus="${nodes[0]}">
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${tint}" fill-opacity="${on?0.28:0.16}" stroke="${tint}"/>
+        <rect x="${x}" y="${y}" width="5" height="${h}" rx="2" fill="${tint}"/>
+        <text x="${x+14}" y="${y+14}" fill="${tint}" font-size="8" font-weight="600">SYSTEM</text>
+        <text x="${x+64}" y="${y+14}" fill="${T.text}" font-size="11" font-weight="600">${esc(title)}</text>
+      </g>`;
+    }
+    function group(x,y,w,h,title,nodes,hue) {
+      const tint = HUE[hue];
+      return `<g opacity="${op(nodes,0.36)}">
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${tint}" fill-opacity="0.1" stroke="${tint}"/>
+        <text x="${x+10}" y="${y+16}" fill="${tint}" font-size="9" font-weight="600">GROUP</text>
+        <text x="${x+56}" y="${y+16}" fill="${T.text}" font-size="11" font-weight="600">${esc(title)}</text>
+      </g>`;
+    }
+    function leaf(x,y,w,h,title,sub,nodes) {
+      return `<g opacity="${op(nodes,0.15)}" style="cursor:pointer" data-focus="${nodes[0]}">
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${T.elev}" stroke="${T.stroke}"/>
+        <text x="${x+5}" y="${y+12}" fill="${T.text}" font-size="10" font-weight="600">${esc(title)}</text>
+        ${sub ? `<text x="${x+5}" y="${y+23}" fill="${T.muted}" font-size="8">${esc(sub)}</text>` : ""}
+      </g>`;
+    }
+    function edge(pts,nodes,label,lx,ly,kind,from) {
+      const color = kind === "leaf" ? (from ? HUE[from] : T.stroke) : T.accent;
+      const marker = kind === "sys" ? "url(#arrS)" : kind === "leaf" ? "url(#arr-" + from + ")" : "";
+      const dash = kind === "leaf" ? 'stroke-dasharray="5 3"' : "";
+      const sw = kind === "leaf" ? 1.2 : 2;
+      const start = kind !== "spine" ? `<circle cx="${pts[0].x}" cy="${pts[0].y}" r="2" fill="${color}"/>` : "";
+      const lab = (kind === "sys" || kind === "spine") && label
+        ? `<rect x="${lx-3}" y="${ly-8}" width="${label.length*5.1+8}" height="12" rx="2" fill="${T.editor}"/><text x="${lx}" y="${ly+1}" fill="${color}" font-size="8" font-weight="600">${esc(label)}</text>`
+        : "";
+      return `<g opacity="${op(nodes,0.15)}">
+        <path d="${ortho(pts)}" fill="none" stroke="${color}" stroke-width="${sw}" ${dash} stroke-linecap="round" ${marker ? 'marker-end="'+marker+'"' : ""}/>
+        ${start}${lab}
+      </g>`;
+    }
+
+    function mapSvg() {
+      const markers = Object.keys(HUE).map((id) =>
+        `<marker id="arr-${id}" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.3 L5,2.5 L0,4.7 Z" fill="${HUE[id]}"/></marker>`
+      ).join("");
+      return `<svg viewBox="0 0 1340 860" width="100%" role="img" aria-label="Three-level JellyC fleet">
+        <defs>
+          <marker id="arrS" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.4 L6,3 L0,5.6 Z" fill="${T.accent}"/></marker>
+          <marker id="arrL" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.3 L5,2.5 L0,4.7 Z" fill="${T.stroke}"/></marker>
+          ${markers}
+        </defs>
+        ${server(6,6,568,508,"AWS Sydney · reports EC2 · 3.25.77.33",["wenning2","info","reports","monitor"])}
+        ${system(14,26,552,86,"WenningNo.2  :3978",["wenning2"],"wenning2")}
+        ${leaf(22,46,126,28,"cloudflared","→ :3978",["wenning2"])}
+        ${leaf(154,46,126,28,"bot FastAPI","systemd",["wenning2"])}
+        ${leaf(286,46,126,28,"policy + ACL","allowlist",["wenning2"])}
+        ${leaf(418,46,140,28,"cursor_bridge","workplace",["wenning2"])}
+        ${leaf(22,78,198,26,"JobManager","local clients → 5 systems",["wenning2"])}
+        ${leaf(226,78,332,26,"teams-agent/.env","CURSOR DUMPLING TOLAS REPORTS HUB PULSE",["wenning2"])}
+        ${system(14,118,552,72,"Info Dashboard  :5000  ·  no login gate",["info"],"info")}
+        ${leaf(22,138,176,42,"okx-basis-monitor","Flask · public POST",["info"])}
+        ${leaf(204,138,176,42,"favorites*.json","shared alert set",["info"])}
+        ${leaf(386,138,172,42,"predictor models","funding weights",["info"])}
+        ${system(14,196,552,100,"Daily Report  :5001–5003 + Unified + Pulse",["reports"],"reports")}
+        ${leaf(22,216,100,30,"BDIF :5001","gunicorn",["reports"])}
+        ${leaf(128,216,100,30,"BBP :5002","SharePoint",["reports"])}
+        ${leaf(234,216,100,30,"BMN :5003","NAV / noon",["reports"])}
+        ${leaf(340,216,100,30,"Unified :5006","front door",["reports"])}
+        ${leaf(446,216,112,30,"Pulse :5007","allocation",["reports"])}
+        ${leaf(22,250,266,36,"reports.db WAL","snapshots · capital flows",["reports"])}
+        ${leaf(294,250,264,36,"Auto_Report/*/env","DUMPLING HARUKO NAV EMAIL",["reports"])}
+        ${system(14,302,552,202,"Monitor Hub  :5005",["monitor"],"monitor")}
+        ${leaf(22,322,172,32,"Flask Hub","TOTP / API key",["monitor"])}
+        ${leaf(200,322,172,32,"per-monitor .env","FLOW + DUMPLING",["monitor"])}
+        ${leaf(378,322,180,32,"dumpling_client","summary / risk",["monitor"])}
+        ${leaf(22,360,128,32,"BMN delta","node 11",["monitor"])}
+        ${leaf(156,360,128,32,"BBP exposure","node 151",["monitor"])}
+        ${leaf(290,360,128,32,"basis_bot","node 193",["monitor"])}
+        ${leaf(424,360,134,32,"margin_risk","risk 11,151",["monitor"])}
+        ${leaf(22,398,128,32,"LIT price","OKX ticker",["monitor"])}
+        ${leaf(156,398,128,32,"Polymarket","Gamma API",["monitor"])}
+        ${leaf(290,398,128,32,"HL TVL","DeFiLlama",["monitor"])}
+        ${leaf(424,398,134,32,"10x Pulse","Llama / TT",["monitor"])}
+        ${leaf(22,436,266,32,"jellyc_auth/","users + hashed keys",["monitor","reports"])}
+        ${leaf(294,436,264,32,"sshd :22","deploy PEM / agents",["wenning2"])}
+        <g transform="translate(40,0)">
+          ${server(582,6,344,508,"AWS Sydney · Nautilus EC2 · :5000 TLS",["nautilus"])}
+          ${system(590,26,328,478,"Nautilus  (dumpling PMS)",["nautilus"],"nautilus")}
+          ${leaf(598,46,312,28,"Host edge :5000","only published port",["nautilus"])}
+          ${leaf(598,80,152,36,"frontend nginx","SPA + proxy",["nautilus"])}
+          ${leaf(756,80,154,36,"backend ×2","summary risk pnl",["nautilus"])}
+          ${leaf(598,122,152,40,"scheduler","capture · CeFi/DeFi",["nautilus"])}
+          ${leaf(756,122,154,40,"streamer","6 WS + poll fills",["nautilus"])}
+          ${leaf(598,168,312,28,"Postgres 16","book · dmp_ hashes",["nautilus"])}
+          ${leaf(598,202,312,32,"secrets/accounts.json","venue keys + jellyc_auth",["nautilus"])}
+          ${leaf(598,240,312,28,".env","HARUKO DEBANK POSTGRES",["nautilus"])}
+          ${leaf(598,274,152,32,"wallets.csv","address inventory",["nautilus"])}
+          ${leaf(756,274,154,32,"venues/","10 HTTP + 6 WS",["nautilus"])}
+          ${leaf(598,312,152,36,"chain_connector","DeBank + RPC",["nautilus"])}
+          ${leaf(756,312,154,36,"backups/ 14d","pg_dump timer",["nautilus"])}
+          ${leaf(598,354,312,36,"Fund nodes","BMN 11 · BBP 151 · basis 193 · BDIF 225",["nautilus"])}
+          ${leaf(598,396,312,36,"VPC / publics","172.31.11.125 · 3.24 / 3.27",["nautilus"])}
+          ${leaf(598,438,312,36,"Haruko import","backend only · not live path",["nautilus"])}
+        </g>
+        <g transform="translate(56,0)">
+          ${server(934,6,340,508,"AWS Tokyo · Tolas EC2 · 13.231.196.249",["tolas"])}
+          ${system(942,26,324,478,"Tolas  :5004",["tolas"],"tolas")}
+          ${leaf(950,46,308,32,"Flask tolas_app.py","UI + /api + /api/v1",["tolas"])}
+          ${leaf(950,84,308,28,"in-process daemons","backfill · ingest · ticker",["tolas"])}
+          ${leaf(950,118,150,36,"funding bots","BBP / BMN",["tolas"])}
+          ${leaf(1106,118,152,36,"basis bots","BBP / BMN",["tolas"])}
+          ${leaf(950,160,150,36,"rolling bots","near→far",["tolas"])}
+          ${leaf(1106,160,152,36,"iceberg","BDIF · MEXC",["tolas"])}
+          ${leaf(950,202,308,28,"xex cross-exchange","KillMode=process",["tolas"])}
+          ${leaf(950,236,308,32,"accounts.json","venue keys · LEG_* inject",["tolas"])}
+          ${leaf(950,274,308,32,"fills CSV + fills.db","CSV is hot-path SoT",["tolas"])}
+          ${leaf(950,312,308,36,"users.json + TOTP","fleet login · SSH → Nautilus",["tolas"])}
+          ${leaf(950,354,308,32,"/home/ec2-user/Talos","Amazon Linux 2023",["tolas"])}
+          ${leaf(950,392,308,36,"tolas.service","stop Tolas ≠ kill bots",["tolas"])}
+          ${leaf(950,434,308,40,"/api/v1 paper-only","network ACL · no TOTP",["tolas"])}
+        </g>
+        <text x="16" y="530" fill="${T.muted}" font-size="9" font-weight="600">EXTERNAL  ·  GROUP is level 2  ·  provider is level 3</text>
+        ${group(6,538,628,314,"CeFi / custody venues",["exchanges"],"exchanges")}
+        ${leaf(14,560,148,36,"OKX","Nau+Tolas+Info+LIT+Pulse",["exchanges"])}
+        ${leaf(168,560,148,36,"Binance","Nautilus WS + Pulse",["exchanges"])}
+        ${leaf(322,560,148,36,"Deribit","Nautilus + Info",["exchanges"])}
+        ${leaf(476,560,150,36,"Kraken","Nautilus HTTP+WS",["exchanges"])}
+        ${leaf(14,602,148,36,"Gate","Nautilus HTTP+WS",["exchanges"])}
+        ${leaf(168,602,148,36,"MEXC","Nau poll + Tolas iceberg",["exchanges"])}
+        ${leaf(322,602,148,36,"Coinbase Prime","Nautilus custody",["exchanges"])}
+        ${leaf(476,602,150,36,"Coinbase Exchange","Nautilus poll",["exchanges"])}
+        ${leaf(14,644,148,36,"Hyperliquid","Nau+Tolas+TVL",["exchanges"])}
+        ${leaf(168,644,148,36,"Lighter","Nau + Tolas XEX",["exchanges"])}
+        ${leaf(322,644,148,36,"Bybit","Pulse marks",["exchanges"])}
+        ${leaf(476,644,150,36,"Fireblocks","Nautilus optional",["exchanges"])}
+        ${leaf(14,686,612,32,"Keys live on the calling host","Nautilus secrets/accounts.json · Tolas state/accounts.json",["exchanges"])}
+        ${group(642,538,368,314,"Info / data / chain / legacy",["infoplat"],"infoplat")}
+        ${leaf(650,560,176,32,"DeBank EVM","Nautilus wallets",["infoplat"])}
+        ${leaf(832,560,170,32,"Public RPCs","BTC SOL NEAR SUI…",["infoplat"])}
+        ${leaf(650,598,176,32,"CoinGecko","Nautilus prices",["infoplat"])}
+        ${leaf(832,598,170,32,"CoinGlass","Info funding",["infoplat"])}
+        ${leaf(650,636,176,32,"Token Terminal","Info + 10x",["infoplat"])}
+        ${leaf(832,636,170,32,"DeFiLlama","TVL + 10x",["infoplat"])}
+        ${leaf(650,674,176,32,"Polymarket Gamma","Monitor",["infoplat"])}
+        ${leaf(832,674,170,32,"CoinMarketCap","Daily marks",["infoplat"])}
+        ${leaf(650,712,176,32,"NAV Fund Services","Daily official NAV",["infoplat"])}
+        ${leaf(832,712,170,32,"Haruko","Daily + Nau backfill",["infoplat"])}
+        ${leaf(650,750,352,28,"EVM via DeBank","ETH ARB AVAX POLY BNB BASE OP",["infoplat"])}
+        ${group(1018,538,256,314,"Notify / SaaS control",["notify"],"notify")}
+        ${leaf(1026,560,240,36,"Microsoft Teams","inbound + replies",["notify"])}
+        ${leaf(1026,602,240,32,"Azure Bot Service","JWT to tunnel",["notify"])}
+        ${leaf(1026,640,240,36,"Cursor Cloud","named env WenningNo.2",["notify"])}
+        ${leaf(1026,682,240,32,"Power Automate","FLOW_URL",["notify"])}
+        ${leaf(1026,720,240,32,"PagerDuty","BMN BBP basis margin LIT",["notify"])}
+        ${leaf(1026,758,118,32,"Office365 SMTP","report email",["notify"])}
+        ${leaf(1150,758,116,32,"SharePoint","BBP upload",["notify"])}
+        ${edge([{x:22,y:91},{x:10,y:91},{x:10,y:403},{x:14,y:403}],["wenning2","info","reports","monitor"],"1",16,100,"spine")}
+        ${edge([{x:10,y:154},{x:14,y:154}],["wenning2","info"],"","0","0","spine")}
+        ${edge([{x:10,y:246},{x:14,y:246}],["wenning2","reports"],"","0","0","spine")}
+        ${edge([{x:566,y:69},{x:582,y:69},{x:582,y:12},{x:794,y:12},{x:794,y:26}],["wenning2","nautilus"],"1 as user",640,10,"sys")}
+        ${edge([{x:566,y:69},{x:570,y:69},{x:570,y:4},{x:1160,y:4},{x:1160,y:26}],["wenning2","tolas"],"1",1040,3,"sys")}
+        ${edge([{x:566,y:246},{x:594,y:246},{x:594,y:182},{x:630,y:182}],["reports","nautilus"],"4 noon",536,244,"sys")}
+        ${edge([{x:566,y:338},{x:606,y:338},{x:606,y:98},{x:630,y:98}],["monitor","nautilus"],"2 book",536,336,"sys")}
+        ${edge([{x:966,y:182},{x:978,y:182},{x:978,y:182},{x:998,y:182}],["nautilus","tolas"],"5 orders",936,178,"sys")}
+        ${edge([{x:998,y:265},{x:978,y:265},{x:978,y:520},{x:110,y:520},{x:110,y:190}],["tolas","info"],"3 trigger",400,518,"sys")}
+        ${edge([{x:488,y:74},{x:488,y:520},{x:1146,y:520},{x:1146,y:640}],["wenning2","notify"],"","","leaf","wenning2")}
+        ${edge([{x:85,y:46},{x:85,y:2},{x:1324,y:2},{x:1324,y:578},{x:1266,y:578}],["wenning2","notify"],"","","leaf","wenning2")}
+        ${edge([{x:110,y:180},{x:110,y:560}],["info","exchanges"],"","","leaf","info")}
+        ${edge([{x:198,y:180},{x:198,y:520},{x:396,y:520},{x:396,y:560}],["info","exchanges"],"","","leaf","info")}
+        ${edge([{x:198,y:180},{x:198,y:520},{x:917,y:520},{x:917,y:598}],["info","infoplat"],"","","leaf","info")}
+        ${edge([{x:198,y:180},{x:198,y:520},{x:738,y:520},{x:738,y:636}],["info","infoplat"],"","","leaf","info")}
+        ${edge([{x:198,y:180},{x:198,y:520},{x:1146,y:520},{x:1146,y:682}],["info","notify"],"","","leaf","info")}
+        ${edge([{x:284,y:286},{x:284,y:520},{x:738,y:520},{x:738,y:712}],["reports","infoplat"],"","","leaf","reports")}
+        ${edge([{x:284,y:286},{x:284,y:520},{x:917,y:520},{x:917,y:674}],["reports","infoplat"],"","","leaf","reports")}
+        ${edge([{x:426,y:286},{x:426,y:520},{x:917,y:520},{x:917,y:712}],["reports","infoplat"],"","","leaf","reports")}
+        ${edge([{x:426,y:286},{x:426,y:520},{x:1085,y:520},{x:1085,y:758}],["reports","notify"],"","","leaf","reports")}
+        ${edge([{x:178,y:246},{x:178,y:520},{x:1208,y:520},{x:1208,y:758}],["reports","notify"],"","","leaf","reports")}
+        ${edge([{x:502,y:246},{x:502,y:560}],["reports","exchanges"],"","","leaf","reports")}
+        ${edge([{x:502,y:246},{x:502,y:520},{x:396,y:520},{x:396,y:644}],["reports","exchanges"],"","","leaf","reports")}
+        ${edge([{x:86,y:430},{x:86,y:560}],["monitor","exchanges"],"","","leaf","monitor")}
+        ${edge([{x:220,y:430},{x:220,y:520},{x:738,y:520},{x:738,y:674}],["monitor","infoplat"],"","","leaf","monitor")}
+        ${edge([{x:354,y:430},{x:354,y:520},{x:917,y:520},{x:917,y:636}],["monitor","infoplat"],"","","leaf","monitor")}
+        ${edge([{x:464,y:430},{x:464,y:520},{x:1146,y:520},{x:1146,y:682}],["monitor","notify"],"","","leaf","monitor")}
+        ${edge([{x:464,y:430},{x:464,y:520},{x:1146,y:520},{x:1146,y:720}],["monitor","notify"],"","","leaf","monitor")}
+        ${edge([{x:714,y:162},{x:714,y:560}],["nautilus","exchanges"],"","","leaf","nautilus")}
+        ${edge([{x:873,y:162},{x:873,y:560}],["nautilus","exchanges"],"","","leaf","nautilus")}
+        ${edge([{x:714,y:348},{x:714,y:520},{x:738,y:520},{x:738,y:560}],["nautilus","infoplat"],"","","leaf","nautilus")}
+        ${edge([{x:714,y:348},{x:714,y:520},{x:917,y:520},{x:917,y:560}],["nautilus","infoplat"],"","","leaf","nautilus")}
+        ${edge([{x:714,y:162},{x:714,y:520},{x:738,y:520},{x:738,y:598}],["nautilus","infoplat"],"","","leaf","nautilus")}
+        ${edge([{x:873,y:116},{x:873,y:712}],["nautilus","infoplat"],"","","leaf","nautilus")}
+        ${edge([{x:1081,y:154},{x:1081,y:560}],["tolas","exchanges"],"","","leaf","tolas")}
+        ${edge([{x:1162,y:178},{x:1162,y:520},{x:242,y:520},{x:242,y:644}],["tolas","exchanges"],"","","leaf","tolas")}
+        ${edge([{x:1238,y:196},{x:1238,y:520},{x:242,y:520},{x:242,y:602}],["tolas","exchanges"],"","","leaf","tolas")}
+        ${edge([{x:1081,y:216},{x:1081,y:644}],["tolas","exchanges"],"","","leaf","tolas")}
+      </svg>`;
+    }
+
+    function render() {
+      document.getElementById("pills").innerHTML = FOCI.map((f) =>
+        `<button class="pill${focus===f.id?" on":""}" data-id="${f.id}">${f.hue?`<span class="sw" style="background:${HUE[f.hue]}"></span>`:""}${esc(f.label)}</button>`
+      ).join("");
+      document.getElementById("map").innerHTML = mapSvg();
+      document.querySelectorAll(".pill").forEach((b) => b.onclick = () => pick(b.dataset.id));
+      document.querySelectorAll("[data-focus]").forEach((g) => g.addEventListener("click", () => pick(g.getAttribute("data-focus"))));
+    }
+    render();
+  </script>
+</body>
+</html>
