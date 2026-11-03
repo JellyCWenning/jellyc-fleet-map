@@ -62,7 +62,7 @@
     <p class="lead">Level 1 SERVER. Level 2 SYSTEM (or GROUP for externals). Level 3 is a process inside a system, or a named provider inside a group. Dashed frames are the VPCs: no app host has a public IP. Checked against AWS, the tailnet and the code on 3 Nov 2026.</p>
     <div class="note">
       <strong>Solid vs dashed</strong>
-      Solid accent arrows are SYSTEM → SYSTEM hops, each with its own API key or ticket, over private DNS or the internal ALB: 1 WenningNo.2 as user · 2 Monitor Hub → Nautilus book · 3 Tolas trigger bots → Trading Monitor, across the peering · 4 Daily Report and Pulse → Nautilus noon book · 5 fleet SSO, Tolas redeems its ticket at Nautilus (Hub, Unified, Trading Monitor and the four reports do the same) · 6 Fund Ops → Nautilus through the ALB · 7 Nautilus pulls the Tolas users.json over SSH. Dashed arrows are a process calling a concrete provider; their color matches the caller. Dashed arrows from the Entry band are entry paths. The old “Nautilus → Tolas live orders” hop is gone: no such call exists in the code.
+      Solid accent arrows are SYSTEM → SYSTEM hops, each with its own API key or ticket, over private DNS or the internal ALB: 1 WenningNo.2 as user · 2 Monitor Hub → Nautilus book · 3 Tolas trigger bots → Trading Monitor, across the peering · 4 Daily Report and Pulse → Nautilus noon book · 5 fleet SSO, Tolas redeems its ticket at Nautilus (Hub, Unified, Trading Monitor and Fund Ops do the same) · 6 Fund Ops → Nautilus through the ALB · 7 Nautilus pulls the Tolas users.json over SSH. Dashed arrows are a process calling a concrete provider; their color matches the caller. Dashed arrows from the Entry band are entry paths. There is no Nautilus → Tolas API call: Nautilus attributes Tolas trades to a strategy from the Tolas tag that each venue fill carries.
     </div>
     <div class="pills" id="pills"></div>
     <div class="map" id="map"></div>
@@ -261,7 +261,7 @@
         ${group(6,6,1328,62,"Entry · who reaches the fleet, and how",["network"],"network")}
         ${leaf(14,28,212,32,"Admins","SSM Session Manager · no SSH from internet",["network"])}
         ${leaf(232,28,212,32,"Colleagues on Tailscale","Microsoft login · laptops · phones · VDI",["network"])}
-        ${leaf(450,28,212,32,"Internet → Funnel","Cursor agent · /name/api + API key",["network","wenning2"])}
+        ${leaf(450,28,212,32,"Internet → Funnel","Teams /wenning · Cursor agent /name/api",["network","wenning2"])}
         ${leaf(668,28,212,32,"Nautilus iOS app","TestFlight · on Tailscale · ALB /api",["network","nautilus"])}
         ${leaf(886,28,212,32,"Grok Bots · Super-Governor","AWS API + three fixed SSM documents",["network"])}
         ${leaf(1104,28,212,32,"arb-lab · Albert server","tag:arb-server · Tolas :5004 direct",["network","tolas"])}
@@ -278,7 +278,7 @@
         ${leaf(30,184,122,28,"bot FastAPI","wenningno2.service",["wenning2"])}
         ${leaf(158,184,122,28,"policy + ACL","allowlist · 5 operators",["wenning2"])}
         ${leaf(286,184,122,28,"cursor_bridge","Cloud Agents API",["wenning2"])}
-        ${leaf(414,184,124,28,"inbound :3978","router a only · no tunnel",["wenning2"])}
+        ${leaf(414,184,124,28,"inbound :3978","Funnel /wenning · router a",["wenning2"])}
         ${leaf(30,218,192,28,"JobManager + clock","ST-001…ST-012 · Perth time",["wenning2"])}
         ${leaf(228,218,310,28,"clients/","Nautilus · Tolas · reports · NAV · Graph mail",["wenning2"])}
         ${system(22,260,524,72,"Trading Monitor  :5000  ·  login + Nautilus SSO",["info"],"info")}
@@ -328,7 +328,7 @@
 
         ${server(622,464,344,210,"jellyc-recon · 10.20.10.143 · t3.small",["fundops"])}
         ${system(630,488,328,138,"Fund Ops  (recon-bot)  :5010 · :5011",["fundops"],"fundops")}
-        ${leaf(638,508,153,32,"app :5010","production · FastAPI · htmx",["fundops"])}
+        ${leaf(638,508,153,32,"app :5010","production · login + Nautilus SSO",["fundops"])}
         ${leaf(797,508,153,32,"app-staging :5011","stage first, then promote",["fundops"])}
         ${leaf(638,546,153,32,"Postgres 18","fund_recon · …_staging",["fundops"])}
         ${leaf(797,546,153,32,"jellyc_auth (read-only)","users.json from Nautilus",["fundops"])}
@@ -408,6 +408,7 @@
 
         ${edge([{x:380,y:60},{x:380,y:100}],["network"],"leaf","network")}
         ${edge([{x:520,y:60},{x:520,y:100}],["network","wenning2"],"leaf","network")}
+        ${edge([{x:480,y:132},{x:480,y:184}],["network","wenning2"],"leaf","network")}
         ${edge([{x:1322,y:60},{x:1322,y:377},{x:1310,y:377}],["network","tolas"],"leaf","network")}
 
         ${edge([{x:22,y:200},{x:18,y:200},{x:18,y:540},{x:22,y:540}],["wenning2","info","reports","monitor"],"spine",null,"1",12,262)}
@@ -558,12 +559,12 @@
   R["tag:router · router a and b"] --> P6["both VPCs · Funnel on router a"]
   TT["tag:tolas · jellyc-tolas"] --> P7["advertises 10.30.10.213/32 only"]` },
         { title: "Funnel, Teams and admin paths", src: `flowchart LR
-  CUR["Cursor Cloud agent<br/>WenningNo.2 workplace"] -->|"https · /name/api + API key"| FUN["Tailscale Funnel on router a<br/>public cert · API paths only"]
-  FUN -->|"/tolas/api"| TOL["tolas.jellyc.internal:5004"]
-  FUN -->|"/nautilus/api"| NAU["nautilus.jellyc.internal:5000"]
-  FUN -->|"/market /bdif /bbp /bmn /hub /unified /pulse /brt"| REP["reports.jellyc.internal :5000–5008"]
-  TEAMS["Teams → Azure Bot Service"] -->|"messaging endpoint"| RA["router a"]
-  RA -->|"security group: :3978 from router a only"| BOT["WenningNo.2 :3978"]
+  AZ["Teams → Azure Bot Service"] -->|"/wenning/api/messages · Bot JWT"| FUN["Tailscale Funnel on router a<br/>public cert · eleven paths"]
+  CUR["Cursor Cloud agent<br/>WenningNo.2 workplace"] -->|"/name/api + API key"| FUN
+  FUN -->|"/wenning → 10.20.10.253:3978"| BOT["WenningNo.2 bot<br/>SG: :3978 from router a only"]
+  FUN -->|"/tolas/api → :5004 · /nautilus/api → :443"| ALB["internal ALB"]
+  FUN -->|"/market /bdif /bbp /bmn /hub /unified /pulse /brt → :5000–5008"| ALB
+  ALB --> SYS["Tolas · Nautilus · reports family"]
   ADM["Admins · Grok Bots"] -->|"AWS API"| SSM["SSM · Session Manager · fixed probe documents"]
   SSM --> HOSTS["every fleet host · no SSH from the internet"]` },
         { title: "Egress and venue IP allowlists", src: `flowchart LR
@@ -582,7 +583,7 @@
         { title: "Host topology", src: `flowchart TB
   subgraph S1["SERVER · jellyc-reports"]
     subgraph SYS["SYSTEM · WenningNo.2 :3978"]
-      IN["inbound :3978 · router a only"]
+      IN["inbound :3978 · from router a only"]
       BOT["bot FastAPI · wenningno2.service"]
       POL["policy + ACL · allowlist.yaml"]
       CBR["cursor_bridge"]
@@ -601,30 +602,32 @@
   end
   subgraph NET["NETWORK"]
     RA["router a · Funnel"]
+    ALB["internal ALB"]
   end
   subgraph HOPS["SYSTEM hops · API keys"]
     NAU["Nautilus · nautilus.jellyc.internal"]
     TOL["Tolas · tolas.jellyc.internal"]
     REP["Trading Monitor · reports · Hub · Pulse · same host"]
   end
-  TEAMS --> AZ -->|"Bot JWT"| RA --> IN
+  TEAMS --> AZ -->|"/wenning/api/messages · Bot JWT"| RA -->|"10.20.10.253:3978"| IN
   CBR -->|"Cloud Agents API"| CUR
   CUR -->|"Funnel /name/api + key"| RA
-  RA --> NAU & TOL & REP
+  RA --> ALB --> NAU & TOL & REP
   CLI --> NAU & TOL & REP
   CLI -.-> GRAPH` },
         { title: "How a request runs", src: `sequenceDiagram
   participant U as Teams user
   participant T as Teams / Azure Bot
+  participant R as Funnel (router a)
   participant B as WenningNo.2 bot
   participant P as Policy + ACL
   participant C as Cursor API
   participant W as Cursor workplace VM
-  participant F as Funnel (router a)
   participant H as Tolas / reports / Nautilus
 
   U->>T: chat message
-  T->>B: POST /api/messages (Bot JWT)
+  T->>R: POST /wenning/api/messages (Bot JWT)
+  R->>B: POST /api/messages on 10.20.10.253:3978
   B->>P: classify + mutation ACL
   alt reject secret or code change
     P-->>U: refuse
@@ -633,8 +636,8 @@
   else cursor_workplace
     B->>C: create or follow up an agent run
     C->>W: agent + AGENTS.md + allowlist
-    W->>F: https /name/api + API key
-    F->>H: *.jellyc.internal
+    W->>R: https /name/api + API key
+    R->>H: internal ALB port
     C-->>B: run FINISHED + result
     B-->>U: proactive Teams reply
   else local job or clock task
@@ -791,7 +794,7 @@
     L[":5001–5003 · :5006 · :5007 · :5008"]
   end
   subgraph T3["Flask apps on jellyc-reports"]
-    LOGIN["/login password + TOTP<br/>or /auth/sso/consume from Nautilus"]
+    LOGIN["/login password + TOTP<br/>Unified also takes a Nautilus SSO ticket"]
     GATE["before_request require_login<br/>or X-Api-Key for machines"]
     API["generate · email · capital_flow · latest"]
   end
@@ -946,7 +949,8 @@
   SCH -.-> DBK & RPC & CG & CMC
   SCH -.-> FB
   BE -->|"7 · ops/sync_jellyc_auth.sh"| TOL
-  TOL -->|"5 · redeem + role"| BE` },
+  TOL -->|"5 · redeem + role"| BE
+  VEN -.->|"fills carry the Tolas STRATEGY_ID / BOT_ID tag"| STR` },
         { title: "How a request is served", src: `flowchart LR
     subgraph UI["frontend — React + Ant Design + AG Grid"]
         LOGIN[Login<br/>email + password + TOTP]
@@ -1076,7 +1080,7 @@
   end
   U -->|"ops/sync_jellyc_auth.sh · SSH across the peering"| JA --> BE
   BE --> SSO
-  SSO -->|"ticket in a 302"| APPS["Tolas · Hub · Unified · Trading Monitor<br/>BDIF · BBP · BMN · BRT"]
+  SSO -->|"ticket in a 302"| APPS["Tolas · Hub · Unified · Trading Monitor · Fund Ops"]
   APPS -->|"redeem + role · FLEET_SSO_SECRET"| SSO
   JA -->|"copied"| FO["Fund Ops jellyc_auth · read-only"]
   U -->|"copied"| TAP["TAP console users.json"]
@@ -1088,7 +1092,7 @@
   SSHU["Colleague SSH over Tailscale · :22 · this host only"]
   subgraph S1["SERVER · jellyc-recon"]
     subgraph SYS["SYSTEM · Fund Ops (recon-bot)"]
-      APP["app :5010 → :8000 · production"]
+      APP["app :5010 → :8000 · production<br/>login or Nautilus SSO ticket"]
       STG["app-staging :5011 → :8000"]
       DB[("Postgres 18 · fund_recon · fund_recon_staging")]
       AUTH["jellyc_auth · read-only · users.json copied from Nautilus"]
@@ -1101,6 +1105,7 @@
   ALB --> APP & STG
   SSHU --> S1
   APP -->|"6 · ALB :443 /api · dmp_ key"| NAU["Nautilus"]
+  APP -->|"5 · SSO redeem"| NAU
   APP -.->|"HMAC API"| NAV["NAV Consulting API"]
   OLD["previous Fund Ops host · still up until the operator retires it"]` },
         { title: "What a recon run does", src: `flowchart LR
@@ -1145,8 +1150,9 @@
     TM["Trading Monitor"]
     NAU["Nautilus"]
   end
-  BOTS -.-> CEX
+  BOTS -.->|"orders carry STRATEGY_ID / BOT_ID"| CEX
   BO -.-> CEX
+  CEX -.->|"fills read back"| NAU
   BT -->|"3 · MONITOR_API_KEY"| TM
   FL -->|"5 · SSO redeem + role"| NAU
   NAU -->|"7 · SSH users.json"| USR` },
