@@ -59,43 +59,58 @@
     <div class="tabs" id="tabs"></div>
     <div class="panel" data-panel="fleet">
     <h1>JellyC fleet · three levels</h1>
-    <p class="lead">Level 1 SERVER. Level 2 SYSTEM (or GROUP for externals). Level 3 is a process inside a system, or a named provider inside a group.</p>
+    <p class="lead">Level 1 SERVER. Level 2 SYSTEM (or GROUP for externals). Level 3 is a process inside a system, or a named provider inside a group. Dashed frames are the VPCs: no app host has a public IP. Checked against AWS, the tailnet and the code on 3 Nov 2026.</p>
     <div class="note">
       <strong>Solid vs dashed</strong>
-      Solid accent arrows are SYSTEM → SYSTEM hops (API keys): 1 WenningNo.2 as user · 2 Monitor → Nautilus book · 3 Tolas → Info Dashboard · 4 Daily Report → noon book · 5 Nautilus → Tolas live orders. Dashed arrows are a process calling a concrete provider — okx-basis-monitor → OKX, scheduler → venues, LIT → OKX ticker, bots → Lighter. They are not fleet hops. Dashed color matches the calling system.
+      Solid accent arrows are SYSTEM → SYSTEM hops, each with its own API key or ticket, over private DNS or the internal ALB: 1 WenningNo.2 as user · 2 Monitor Hub → Nautilus book · 3 Tolas trigger bots → Trading Monitor, across the peering · 4 Daily Report and Pulse → Nautilus noon book · 5 fleet SSO, Tolas redeems its ticket at Nautilus (Hub, Unified, Trading Monitor and the four reports do the same) · 6 Fund Ops → Nautilus through the ALB · 7 Nautilus pulls the Tolas users.json over SSH. Dashed arrows are a process calling a concrete provider; their color matches the caller. Slate dashed arrows are entry paths. The old “Nautilus → Tolas live orders” hop is gone: no such call exists in the code.
     </div>
     <div class="pills" id="pills"></div>
     <div class="map" id="map"></div>
     </div>
+    <div class="panel" data-panel="network" hidden>
+      <h1>Network · VPC</h1>
+      <p class="lead">Sydney VPC jellyc-syd 10.20.0.0/16 and Tokyo VPC jellyc-tyo 10.30.0.0/16, joined by peering. The co-signer stays in the us-east-1 default VPC. People enter over Tailscale; the Cursor agent enters over Funnel. The old public hosts are stopped.</p>
+      <div class="charts" id="charts-network"></div>
+    </div>
     <div class="panel" data-panel="wenning2" hidden>
       <h1>WenningNo.2</h1>
-      <p class="lead">SERVER reports EC2 · SYSTEM WenningNo.2 :3978 · Teams agent that acts as a user on the other five systems. All 4 diagrams from the review doc.</p>
+      <p class="lead">SERVER jellyc-reports (Sydney) · SYSTEM WenningNo.2 :3978 · Teams agent that acts as a user on the other systems.</p>
       <div class="charts" id="charts-wenning2"></div>
     </div>
     <div class="panel" data-panel="info" hidden>
-      <h1>Info Dashboard</h1>
-      <p class="lead">SERVER reports EC2 · SYSTEM Info Dashboard :5000 · no login gate. All 2 diagrams from the review doc.</p>
+      <h1>Trading Monitor</h1>
+      <p class="lead">SERVER jellyc-reports (Sydney) · SYSTEM Trading Monitor (Info Dashboard) :5000, container okx-basis-monitor · login gate and Nautilus SSO since the move.</p>
       <div class="charts" id="charts-info"></div>
     </div>
     <div class="panel" data-panel="reports" hidden>
       <h1>Daily Report</h1>
-      <p class="lead">SERVER reports EC2 · SYSTEM Daily Report :5001–5003 + Unified + Pulse. All 4 diagrams from the review doc.</p>
+      <p class="lead">SERVER jellyc-reports (Sydney) · SYSTEM Daily Report :5001–5003 and BRT :5008, plus Unified :5006 and Pulse :5007.</p>
       <div class="charts" id="charts-reports"></div>
     </div>
     <div class="panel" data-panel="monitor" hidden>
-      <h1>Monitor</h1>
-      <p class="lead">SERVER reports EC2 · SYSTEM Monitor Hub :5005 · Hub plus eight child monitors. All 3 diagrams from the review doc.</p>
+      <h1>Monitor Hub</h1>
+      <p class="lead">SERVER jellyc-reports (Sydney) · SYSTEM Monitor Hub :5005 · the Hub plus ten child monitors.</p>
       <div class="charts" id="charts-monitor"></div>
     </div>
     <div class="panel" data-panel="nautilus" hidden>
       <h1>Nautilus</h1>
-      <p class="lead">SERVER Sydney Nautilus EC2 · SYSTEM dumpling PMS · portfolio / risk / P&amp;L book. All 5 diagrams from the review doc.</p>
+      <p class="lead">SERVER jellyc-nautilus (Sydney) · SYSTEM Nautilus (dumpling PMS) · portfolio, risk and P&amp;L book, and the fleet SSO.</p>
       <div class="charts" id="charts-nautilus"></div>
+    </div>
+    <div class="panel" data-panel="fundops" hidden>
+      <h1>Fund Ops</h1>
+      <p class="lead">SERVER jellyc-recon (Sydney) · SYSTEM Fund Ops (recon-bot) · NAV reconciliation, :5010 production and :5011 staging.</p>
+      <div class="charts" id="charts-fundops"></div>
     </div>
     <div class="panel" data-panel="tolas" hidden>
       <h1>Tolas</h1>
-      <p class="lead">SERVER Tokyo Tolas EC2 · SYSTEM Tolas :5004 · live trading control plane. All 3 diagrams from the review doc.</p>
+      <p class="lead">SERVER jellyc-tolas (Tokyo) · SYSTEM Tolas :5004 · live trading control plane.</p>
       <div class="charts" id="charts-tolas"></div>
+    </div>
+    <div class="panel" data-panel="tap" hidden>
+      <h1>TAP + co-signer</h1>
+      <p class="lead">SERVER jellyc-tap (Tokyo) and fireblocks-nitro-cosigner (us-east-1) · SYSTEM TAP console (signet) · Fireblocks venue transfers.</p>
+      <div class="charts" id="charts-tap"></div>
     </div>
   </div>
   <script>
@@ -113,24 +128,28 @@
         document.getElementById("gate-err").hidden = false;
       }
     });
-    const HUE = { wenning2:"#9386F2", info:"#81A1C1", reports:"#F1B467", monitor:"#DD7F76", nautilus:"#7BAFE9", tolas:"#3FA266", exchanges:"#B48EAD", infoplat:"#E4E4E48A", notify:"#FC6B83" };
+    const HUE = { network:"#94A3B8", wenning2:"#9386F2", info:"#81A1C1", reports:"#F1B467", monitor:"#DD7F76", nautilus:"#7BAFE9", fundops:"#C5D86D", tolas:"#3FA266", tap:"#4FC1B0", exchanges:"#B48EAD", infoplat:"#E4E4E48A", notify:"#FC6B83" };
     const FOCI = [
       { id:"all", label:"All" },
+      { id:"network", label:"Network / entry", hue:"network" },
       { id:"wenning2", label:"WenningNo.2", hue:"wenning2" },
-      { id:"info", label:"Info Dashboard", hue:"info" },
+      { id:"info", label:"Trading Monitor", hue:"info" },
       { id:"reports", label:"Daily Report", hue:"reports" },
-      { id:"monitor", label:"Monitor", hue:"monitor" },
+      { id:"monitor", label:"Monitor Hub", hue:"monitor" },
       { id:"nautilus", label:"Nautilus", hue:"nautilus" },
+      { id:"fundops", label:"Fund Ops", hue:"fundops" },
       { id:"tolas", label:"Tolas", hue:"tolas" },
+      { id:"tap", label:"TAP + co-signer", hue:"tap" },
       { id:"exchanges", label:"CeFi group", hue:"exchanges" },
       { id:"infoplat", label:"Info group", hue:"infoplat" },
       { id:"notify", label:"Notify group", hue:"notify" },
     ];
     const RELATED = {
-      all:[], wenning2:["notify"], info:["exchanges","infoplat","notify"], reports:["exchanges","infoplat","notify"],
-      monitor:["exchanges","infoplat","notify"], nautilus:["exchanges","infoplat"], tolas:["exchanges"],
-      exchanges:["nautilus","tolas","info","reports","monitor"], infoplat:["nautilus","info","monitor","reports"],
-      notify:["wenning2","info","monitor","reports"],
+      all:[], network:[], wenning2:["notify"], info:["exchanges","infoplat","notify"], reports:["exchanges","infoplat","notify"],
+      monitor:["exchanges","infoplat","notify"], nautilus:["exchanges","infoplat"], fundops:["infoplat"], tolas:["exchanges"],
+      tap:["exchanges","infoplat","notify"],
+      exchanges:["nautilus","tolas","info","reports","monitor","tap"], infoplat:["nautilus","info","monitor","reports","fundops","tap"],
+      notify:["wenning2","info","monitor","reports","tap"],
     };
     const T = { text:"#e4e4e4", muted:"#8a8a8a", elev:"#1c1c1c", editor:"#141414", fill3:"#2a2a2a", stroke:"#5a5a5a", stroke2:"#3d3d3d", accent:"#7bafe9" };
     let focus = "all";
@@ -168,6 +187,14 @@
     function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
     function pick(id) { focus = focus === id ? "all" : id; render(); }
 
+    function vpc(x,y,w,h,title,sub,nodes) {
+      return `<g opacity="${op(nodes,0.5)}">
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="none" stroke="${HUE.network}" stroke-opacity="0.6" stroke-dasharray="5 4"/>
+        <text x="${x+10}" y="${y+16}" fill="${HUE.network}" font-size="9" font-weight="600">VPC</text>
+        <text x="${x+36}" y="${y+16}" fill="${T.text}" font-size="11" font-weight="600">${esc(title)}</text>
+        ${sub ? `<text x="${x+w-10}" y="${y+16}" fill="${T.muted}" font-size="9" text-anchor="end">${esc(sub)}</text>` : ""}
+      </g>`;
+    }
     function server(x,y,w,h,title,nodes) {
       return `<g opacity="${op(nodes,0.36)}">
         <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${T.fill3}" stroke="${T.stroke2}"/>
@@ -201,6 +228,10 @@
         ${sub ? `<text x="${x+5}" y="${y+23}" fill="${T.muted}" font-size="8">${esc(sub)}</text>` : ""}
       </g>`;
     }
+    function caption(x,y,text) {
+      return `<g pointer-events="none"><rect x="${x-4}" y="${y-10}" width="${text.length*5.2+10}" height="14" rx="2" fill="${T.editor}"/>
+        <text x="${x}" y="${y}" fill="${T.muted}" font-size="9" font-weight="600">${esc(text)}</text></g>`;
+    }
     function edge(pts,nodes,kind,from,label,lx,ly) {
       const color = kind === "leaf" ? (from ? HUE[from] : T.stroke) : T.accent;
       const marker = kind === "sys" ? "url(#arrS)" : kind === "leaf" ? "url(#arr-" + from + ")" : "";
@@ -220,155 +251,221 @@
       const markers = Object.keys(HUE).map((id) =>
         `<marker id="arr-${id}" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.3 L5,2.5 L0,4.7 Z" fill="${HUE[id]}"/></marker>`
       ).join("");
-      return `<svg viewBox="0 0 1340 860" width="100%" role="img" aria-label="Three-level JellyC fleet">
+      const SYD = ["network","wenning2","info","reports","monitor","nautilus","fundops"];
+      return `<svg viewBox="0 0 1340 944" width="100%" role="img" aria-label="Three-level JellyC fleet">
         <defs>
           <marker id="arrS" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.4 L6,3 L0,5.6 Z" fill="${T.accent}"/></marker>
           <marker id="arrL" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.3 L5,2.5 L0,4.7 Z" fill="${T.stroke}"/></marker>
           ${markers}
         </defs>
-        ${server(6,6,568,508,"AWS Sydney · reports EC2 · 3.25.77.33",["wenning2","info","reports","monitor"])}
-        ${system(14,26,552,86,"WenningNo.2  :3978",["wenning2"],"wenning2")}
-        ${leaf(22,46,126,28,"cloudflared","→ :3978",["wenning2"])}
-        ${leaf(154,46,126,28,"bot FastAPI","systemd",["wenning2"])}
-        ${leaf(286,46,126,28,"policy + ACL","allowlist",["wenning2"])}
-        ${leaf(418,46,140,28,"cursor_bridge","workplace",["wenning2"])}
-        ${leaf(22,78,198,26,"JobManager","local clients → 5 systems",["wenning2"])}
-        ${leaf(226,78,332,26,"teams-agent/.env","CURSOR DUMPLING TOLAS REPORTS HUB PULSE",["wenning2"])}
-        ${system(14,118,552,72,"Info Dashboard  :5000  ·  no login gate",["info"],"info")}
-        ${leaf(22,138,176,42,"okx-basis-monitor","Flask · public POST",["info"])}
-        ${leaf(204,138,176,42,"favorites*.json","shared alert set",["info"])}
-        ${leaf(386,138,172,42,"predictor models","funding weights",["info"])}
-        ${system(14,196,552,100,"Daily Report  :5001–5003 + Unified + Pulse",["reports"],"reports")}
-        ${leaf(22,216,100,30,"BDIF :5001","gunicorn",["reports"])}
-        ${leaf(128,216,100,30,"BBP :5002","SharePoint",["reports"])}
-        ${leaf(234,216,100,30,"BMN :5003","NAV / noon",["reports"])}
-        ${leaf(340,216,100,30,"Unified :5006","front door",["reports"])}
-        ${leaf(446,216,112,30,"Pulse :5007","allocation",["reports"])}
-        ${leaf(22,250,266,36,"reports.db WAL","snapshots · capital flows",["reports"])}
-        ${leaf(294,250,264,36,"Auto_Report/*/env","DUMPLING HARUKO NAV EMAIL",["reports"])}
-        ${system(14,302,552,202,"Monitor Hub  :5005",["monitor"],"monitor")}
-        ${leaf(22,322,172,32,"Flask Hub","TOTP / API key",["monitor"])}
-        ${leaf(200,322,172,32,"per-monitor .env","FLOW + DUMPLING",["monitor"])}
-        ${leaf(378,322,180,32,"dumpling_client","summary / risk",["monitor"])}
-        ${leaf(22,360,128,32,"BMN delta","node 11",["monitor"])}
-        ${leaf(156,360,128,32,"BBP exposure","node 151",["monitor"])}
-        ${leaf(290,360,128,32,"basis_bot","node 193",["monitor"])}
-        ${leaf(424,360,134,32,"margin_risk","risk 11,151",["monitor"])}
-        ${leaf(22,398,128,32,"LIT price","OKX ticker",["monitor"])}
-        ${leaf(156,398,128,32,"Polymarket","Gamma API",["monitor"])}
-        ${leaf(290,398,128,32,"HL TVL","DeFiLlama",["monitor"])}
-        ${leaf(424,398,134,32,"10x Pulse","Llama / TT",["monitor"])}
-        ${leaf(22,436,266,32,"jellyc_auth/","users + hashed keys",["monitor","reports"])}
-        ${leaf(294,436,264,32,"sshd :22","deploy PEM / agents",["wenning2"])}
-        <g transform="translate(40,0)">
-          ${server(582,6,344,508,"AWS Sydney · Nautilus EC2 · :5000 TLS",["nautilus"])}
-          ${system(590,26,328,478,"Nautilus  (dumpling PMS)",["nautilus"],"nautilus")}
-          ${leaf(598,46,312,28,"Host edge :5000","only published port",["nautilus"])}
-          ${leaf(598,80,152,36,"frontend nginx","SPA + proxy",["nautilus"])}
-          ${leaf(756,80,154,36,"backend ×2","summary risk pnl",["nautilus"])}
-          ${leaf(598,122,152,40,"scheduler","capture · CeFi/DeFi",["nautilus"])}
-          ${leaf(756,122,154,40,"streamer","6 WS + poll fills",["nautilus"])}
-          ${leaf(598,168,312,28,"Postgres 16","book · dmp_ hashes",["nautilus"])}
-          ${leaf(598,202,312,32,"secrets/accounts.json","venue keys + jellyc_auth",["nautilus"])}
-          ${leaf(598,240,312,28,".env","HARUKO DEBANK POSTGRES",["nautilus"])}
-          ${leaf(598,274,152,32,"wallets.csv","address inventory",["nautilus"])}
-          ${leaf(756,274,154,32,"venues/","10 HTTP + 6 WS",["nautilus"])}
-          ${leaf(598,312,152,36,"chain_connector","DeBank + RPC",["nautilus"])}
-          ${leaf(756,312,154,36,"backups/ 14d","pg_dump timer",["nautilus"])}
-          ${leaf(598,354,312,36,"Fund nodes","BMN 11 · BBP 151 · basis 193 · BDIF 225",["nautilus"])}
-          ${leaf(598,396,312,36,"VPC / publics","172.31.11.125 · 3.24 / 3.27",["nautilus"])}
-          ${leaf(598,438,312,36,"Haruko import","backend only · not live path",["nautilus"])}
-        </g>
-        <g transform="translate(56,0)">
-          ${server(934,6,340,508,"AWS Tokyo · Tolas EC2 · 13.231.196.249",["tolas"])}
-          ${system(942,26,324,478,"Tolas  :5004",["tolas"],"tolas")}
-          ${leaf(950,46,308,32,"Flask tolas_app.py","UI + /api + /api/v1",["tolas"])}
-          ${leaf(950,84,308,28,"in-process daemons","backfill · ingest · ticker",["tolas"])}
-          ${leaf(950,118,150,36,"funding bots","BBP / BMN",["tolas"])}
-          ${leaf(1106,118,152,36,"basis bots","BBP / BMN",["tolas"])}
-          ${leaf(950,160,150,36,"rolling bots","near→far",["tolas"])}
-          ${leaf(1106,160,152,36,"iceberg","BDIF · MEXC",["tolas"])}
-          ${leaf(950,202,308,28,"xex cross-exchange","KillMode=process",["tolas"])}
-          ${leaf(950,236,308,32,"accounts.json","venue keys · LEG_* inject",["tolas"])}
-          ${leaf(950,274,308,32,"fills CSV + fills.db","CSV is hot-path SoT",["tolas"])}
-          ${leaf(950,312,308,36,"users.json + TOTP","fleet login · SSH → Nautilus",["tolas"])}
-          ${leaf(950,354,308,32,"/home/ec2-user/Talos","Amazon Linux 2023",["tolas"])}
-          ${leaf(950,392,308,36,"tolas.service","stop Tolas ≠ kill bots",["tolas"])}
-          ${leaf(950,434,308,40,"/api/v1 paper-only","network ACL · no TOTP",["tolas"])}
-        </g>
-        <text x="16" y="530" fill="${T.muted}" font-size="9" font-weight="600">EXTERNAL  ·  GROUP is level 2  ·  provider is level 3</text>
-        ${group(6,538,628,314,"CeFi / custody venues",["exchanges"],"exchanges")}
-        ${leaf(14,560,148,36,"OKX","Nau+Tolas+Info+LIT+Pulse",["exchanges"])}
-        ${leaf(168,560,148,36,"Binance","Nautilus WS + Pulse",["exchanges"])}
-        ${leaf(322,560,148,36,"Deribit","Nautilus + Info",["exchanges"])}
-        ${leaf(476,560,150,36,"Kraken","Nautilus HTTP+WS",["exchanges"])}
-        ${leaf(14,602,148,36,"Gate","Nautilus HTTP+WS",["exchanges"])}
-        ${leaf(168,602,148,36,"MEXC","Nau poll + Tolas iceberg",["exchanges"])}
-        ${leaf(322,602,148,36,"Coinbase Prime","Nautilus custody",["exchanges"])}
-        ${leaf(476,602,150,36,"Coinbase Exchange","Nautilus poll",["exchanges"])}
-        ${leaf(14,644,148,36,"Hyperliquid","Nau+Tolas+TVL",["exchanges"])}
-        ${leaf(168,644,148,36,"Lighter","Nau + Tolas XEX",["exchanges"])}
-        ${leaf(322,644,148,36,"Bybit","Pulse marks",["exchanges"])}
-        ${leaf(476,644,150,36,"Fireblocks","Nautilus optional",["exchanges"])}
-        ${leaf(14,686,612,32,"Keys live on the calling host","Nautilus secrets/accounts.json · Tolas state/accounts.json",["exchanges"])}
-        ${group(642,538,368,314,"Info / data / chain / legacy",["infoplat"],"infoplat")}
-        ${leaf(650,560,176,32,"DeBank EVM","Nautilus wallets",["infoplat"])}
-        ${leaf(832,560,170,32,"Public RPCs","BTC SOL NEAR SUI…",["infoplat"])}
-        ${leaf(650,598,176,32,"CoinGecko","Nautilus prices",["infoplat"])}
-        ${leaf(832,598,170,32,"CoinGlass","Info funding",["infoplat"])}
-        ${leaf(650,636,176,32,"Token Terminal","Info + 10x",["infoplat"])}
-        ${leaf(832,636,170,32,"DeFiLlama","TVL + 10x",["infoplat"])}
-        ${leaf(650,674,176,32,"Polymarket Gamma","Monitor",["infoplat"])}
-        ${leaf(832,674,170,32,"CoinMarketCap","Daily marks",["infoplat"])}
-        ${leaf(650,712,176,32,"NAV Fund Services","Daily official NAV",["infoplat"])}
-        ${leaf(832,712,170,32,"Haruko","Daily + Nau backfill",["infoplat"])}
-        ${leaf(650,750,352,28,"EVM via DeBank","ETH ARB AVAX POLY BNB BASE OP",["infoplat"])}
-        ${group(1018,538,256,314,"Notify / SaaS control",["notify"],"notify")}
-        ${leaf(1026,560,240,36,"Microsoft Teams","inbound + replies",["notify"])}
-        ${leaf(1026,602,240,32,"Azure Bot Service","JWT to tunnel",["notify"])}
-        ${leaf(1026,640,240,36,"Cursor Cloud","named env WenningNo.2",["notify"])}
-        ${leaf(1026,682,240,32,"Power Automate","FLOW_URL",["notify"])}
-        ${leaf(1026,720,240,32,"PagerDuty","BMN BBP basis margin LIT",["notify"])}
-        ${leaf(1026,758,118,32,"Office365 SMTP","report email",["notify"])}
-        ${leaf(1150,758,116,32,"SharePoint","BBP upload",["notify"])}
-        ${edge([{x:22,y:91},{x:10,y:91},{x:10,y:403},{x:14,y:403}],["wenning2","info","reports","monitor"],"spine",null,"1",16,100)}
-        ${edge([{x:10,y:154},{x:14,y:154}],["wenning2","info"],"spine")}
-        ${edge([{x:10,y:246},{x:14,y:246}],["wenning2","reports"],"spine")}
-        ${edge([{x:566,y:69},{x:582,y:69},{x:582,y:12},{x:794,y:12},{x:794,y:26}],["wenning2","nautilus"],"sys",null,"1 as user",640,10)}
-        ${edge([{x:566,y:69},{x:570,y:69},{x:570,y:4},{x:1160,y:4},{x:1160,y:26}],["wenning2","tolas"],"sys",null,"1",1040,3)}
-        ${edge([{x:566,y:246},{x:594,y:246},{x:594,y:182},{x:630,y:182}],["reports","nautilus"],"sys",null,"4 noon",536,244)}
-        ${edge([{x:566,y:338},{x:606,y:338},{x:606,y:98},{x:630,y:98}],["monitor","nautilus"],"sys",null,"2 book",536,336)}
-        ${edge([{x:966,y:182},{x:978,y:182},{x:978,y:182},{x:998,y:182}],["nautilus","tolas"],"sys",null,"5 orders",936,178)}
-        ${edge([{x:998,y:265},{x:978,y:265},{x:978,y:520},{x:110,y:520},{x:110,y:190}],["tolas","info"],"sys",null,"3 trigger",400,518)}
-        ${edge([{x:488,y:74},{x:488,y:520},{x:1146,y:520},{x:1146,y:640}],["wenning2","notify"],"leaf","wenning2")}
-        ${edge([{x:85,y:46},{x:85,y:2},{x:1324,y:2},{x:1324,y:578},{x:1266,y:578}],["wenning2","notify"],"leaf","wenning2")}
-        ${edge([{x:110,y:180},{x:110,y:560}],["info","exchanges"],"leaf","info")}
-        ${edge([{x:198,y:180},{x:198,y:520},{x:396,y:520},{x:396,y:560}],["info","exchanges"],"leaf","info")}
-        ${edge([{x:198,y:180},{x:198,y:520},{x:917,y:520},{x:917,y:598}],["info","infoplat"],"leaf","info")}
-        ${edge([{x:198,y:180},{x:198,y:520},{x:738,y:520},{x:738,y:636}],["info","infoplat"],"leaf","info")}
-        ${edge([{x:198,y:180},{x:198,y:520},{x:1146,y:520},{x:1146,y:682}],["info","notify"],"leaf","info")}
-        ${edge([{x:284,y:286},{x:284,y:520},{x:738,y:520},{x:738,y:712}],["reports","infoplat"],"leaf","reports")}
-        ${edge([{x:284,y:286},{x:284,y:520},{x:917,y:520},{x:917,y:674}],["reports","infoplat"],"leaf","reports")}
-        ${edge([{x:426,y:286},{x:426,y:520},{x:917,y:520},{x:917,y:712}],["reports","infoplat"],"leaf","reports")}
-        ${edge([{x:426,y:286},{x:426,y:520},{x:1085,y:520},{x:1085,y:758}],["reports","notify"],"leaf","reports")}
-        ${edge([{x:178,y:246},{x:178,y:520},{x:1208,y:520},{x:1208,y:758}],["reports","notify"],"leaf","reports")}
-        ${edge([{x:502,y:246},{x:502,y:560}],["reports","exchanges"],"leaf","reports")}
-        ${edge([{x:502,y:246},{x:502,y:520},{x:396,y:520},{x:396,y:644}],["reports","exchanges"],"leaf","reports")}
-        ${edge([{x:86,y:430},{x:86,y:560}],["monitor","exchanges"],"leaf","monitor")}
-        ${edge([{x:220,y:430},{x:220,y:520},{x:738,y:520},{x:738,y:674}],["monitor","infoplat"],"leaf","monitor")}
-        ${edge([{x:354,y:430},{x:354,y:520},{x:917,y:520},{x:917,y:636}],["monitor","infoplat"],"leaf","monitor")}
-        ${edge([{x:464,y:430},{x:464,y:520},{x:1146,y:520},{x:1146,y:682}],["monitor","notify"],"leaf","monitor")}
-        ${edge([{x:464,y:430},{x:464,y:520},{x:1146,y:520},{x:1146,y:720}],["monitor","notify"],"leaf","monitor")}
-        ${edge([{x:714,y:162},{x:714,y:560}],["nautilus","exchanges"],"leaf","nautilus")}
-        ${edge([{x:873,y:162},{x:873,y:560}],["nautilus","exchanges"],"leaf","nautilus")}
-        ${edge([{x:714,y:348},{x:714,y:520},{x:738,y:520},{x:738,y:560}],["nautilus","infoplat"],"leaf","nautilus")}
-        ${edge([{x:714,y:348},{x:714,y:520},{x:917,y:520},{x:917,y:560}],["nautilus","infoplat"],"leaf","nautilus")}
-        ${edge([{x:714,y:162},{x:714,y:520},{x:738,y:520},{x:738,y:598}],["nautilus","infoplat"],"leaf","nautilus")}
-        ${edge([{x:873,y:116},{x:873,y:712}],["nautilus","infoplat"],"leaf","nautilus")}
-        ${edge([{x:1081,y:154},{x:1081,y:560}],["tolas","exchanges"],"leaf","tolas")}
-        ${edge([{x:1162,y:178},{x:1162,y:520},{x:242,y:520},{x:242,y:644}],["tolas","exchanges"],"leaf","tolas")}
-        ${edge([{x:1238,y:196},{x:1238,y:520},{x:242,y:520},{x:242,y:602}],["tolas","exchanges"],"leaf","tolas")}
-        ${edge([{x:1081,y:216},{x:1081,y:644}],["tolas","exchanges"],"leaf","tolas")}
+        ${group(6,6,1328,62,"Entry · who reaches the fleet, and how",["network"],"network")}
+        ${leaf(14,28,212,32,"Admins","SSM Session Manager · no SSH from internet",["network"])}
+        ${leaf(232,28,212,32,"Colleagues on Tailscale","Microsoft login · laptops · phones · VDI",["network"])}
+        ${leaf(450,28,212,32,"Internet → Funnel","Cursor agent · /name/api + API key",["network","wenning2"])}
+        ${leaf(668,28,212,32,"Nautilus iOS app","TestFlight · on Tailscale · ALB /api",["network","nautilus"])}
+        ${leaf(886,28,212,32,"Grok Bots · Super-Governor","AWS API + three fixed SSM documents",["network"])}
+        ${leaf(1104,28,212,32,"arb-lab · Albert server","tag:arb-server · Tolas :5004 direct",["network","tolas"])}
+
+        ${vpc(6,76,968,606,"jellyc-syd · 10.20.0.0/16 · Sydney","public-edge: NAT · private-app: hosts, ALB, routers · private-data: empty",SYD)}
+        ${leaf(14,100,160,32,"NAT gateway","public-edge-a · Sydney egress EIP",["network"])}
+        ${leaf(180,100,220,32,"internal ALB  jellyc-ops-int",":443 · :5000–5011 · one port per system",["network"])}
+        ${leaf(406,100,148,32,"router a · Funnel","app-a · subnet router",["network"])}
+        ${leaf(586,100,150,32,"router b","app-b · subnet router",["network"])}
+        ${leaf(742,100,224,32,"Route 53  jellyc.internal","private zone · Sydney + Tokyo VPCs",["network"])}
+
+        ${server(14,140,540,534,"jellyc-reports · 10.20.10.253 · t3.large",["wenning2","info","reports","monitor"])}
+        ${system(22,164,524,90,"WenningNo.2  :3978",["wenning2"],"wenning2")}
+        ${leaf(30,184,122,28,"bot FastAPI","wenningno2.service",["wenning2"])}
+        ${leaf(158,184,122,28,"policy + ACL","allowlist · 5 operators",["wenning2"])}
+        ${leaf(286,184,122,28,"cursor_bridge","Cloud Agents API",["wenning2"])}
+        ${leaf(414,184,124,28,"inbound :3978","router a only · no tunnel",["wenning2"])}
+        ${leaf(30,218,192,28,"JobManager + clock","ST-001…ST-012 · Perth time",["wenning2"])}
+        ${leaf(228,218,310,28,"clients/","Nautilus · Tolas · reports · NAV · Graph mail",["wenning2"])}
+        ${system(22,260,524,72,"Trading Monitor  :5000  ·  login + Nautilus SSO",["info"],"info")}
+        ${leaf(30,280,168,42,"okx-basis-monitor","Flask · 11 venues · API key",["info"])}
+        ${leaf(204,280,168,42,"favorites + data","basis-monitor-data/",["info"])}
+        ${leaf(378,280,160,42,"predictor models","nightly retrain 04:00",["info"])}
+        ${system(22,338,524,102,"Daily Report  :5001–5003 · :5008  +  Unified · Pulse",["reports"],"reports")}
+        ${leaf(30,358,79,32,"BDIF :5001","gunicorn",["reports"])}
+        ${leaf(115,358,79,32,"BBP :5002","SharePoint",["reports"])}
+        ${leaf(200,358,79,32,"BMN :5003","NAV / noon",["reports"])}
+        ${leaf(285,358,79,32,"BRT :5008","Bluering",["reports"])}
+        ${leaf(370,358,79,32,"Unified :5006","front door",["reports"])}
+        ${leaf(455,358,83,32,"Pulse :5007","allocation",["reports"])}
+        ${leaf(30,396,168,36,"reports.db WAL","snapshots · capital flows",["reports"])}
+        ${leaf(204,396,168,36,"Auto_Report/*/env","keys stay on the host",["reports"])}
+        ${leaf(378,396,160,36,"IT report","Unified /it-report · 09:00 SGT",["reports"])}
+        ${system(22,446,524,184,"Monitor Hub  :5005  ·  10 child monitors",["monitor"],"monitor")}
+        ${leaf(30,466,168,30,"Flask Hub","login + SSO · API key",["monitor"])}
+        ${leaf(204,466,168,30,"per-monitor .env","FLOW_URL · PagerDuty key",["monitor"])}
+        ${leaf(378,466,160,30,"dumpling_client","Nautilus summary / risk",["monitor"])}
+        ${leaf(30,502,122,34,"BMN delta","node 11",["monitor"])}
+        ${leaf(158,502,122,34,"BBP exposure","node 151",["monitor"])}
+        ${leaf(286,502,122,34,"basis_bot","basis account",["monitor"])}
+        ${leaf(414,502,124,34,"margin_risk","risk nodes",["monitor"])}
+        ${leaf(30,542,122,34,"BMN credit line","Nautilus + PagerDuty",["monitor"])}
+        ${leaf(158,542,122,34,"LIT price","OKX ticker",["monitor"])}
+        ${leaf(286,542,122,34,"Polymarket","Gamma API",["monitor"])}
+        ${leaf(414,542,124,34,"HL TVL","DeFiLlama",["monitor"])}
+        ${leaf(30,582,122,38,"10x Pulse","Llama · TT · nearblocks",["monitor"])}
+        ${leaf(158,582,122,38,"DeBank units","DeBank + CMC",["monitor"])}
+        ${leaf(286,582,252,38,"jellyc_auth/","users.json + API keys · reports · TM · Pulse · Hub",["monitor","reports","info"])}
+        ${leaf(22,638,524,28,"host","Amazon Linux 2023 · Docker · SSM · daily backup, 7 days, copied to Tokyo",["wenning2","info","reports","monitor"])}
+
+        ${server(622,140,344,316,"jellyc-nautilus · 10.20.10.31 · c6i.xlarge",["nautilus"])}
+        ${system(630,164,328,246,"Nautilus  (dumpling PMS)",["nautilus"],"nautilus")}
+        ${leaf(638,184,312,28,"nginx :5000 TLS · :5080","JellyC CA cert · SPA + /api · ALB :443",["nautilus"])}
+        ${leaf(638,218,153,32,"backend ×2","FastAPI · fleet SSO IdP",["nautilus"])}
+        ${leaf(797,218,153,32,"scheduler","hourly capture · live CeFi/DeFi",["nautilus"])}
+        ${leaf(638,256,153,32,"streamer","6 WS + poll fills",["nautilus"])}
+        ${leaf(797,256,153,32,"Postgres 16","book · sleeves · dmp_ keys",["nautilus"])}
+        ${leaf(638,294,153,32,"venues/","10 HTTP + 6 WS adapters",["nautilus"])}
+        ${leaf(797,294,153,32,"chain_connector","DeBank · RPCs · Fireblocks",["nautilus"])}
+        ${leaf(638,332,153,32,"secrets/","venue keys · jellyc_auth",["nautilus"])}
+        ${leaf(797,332,153,32,"deploy_main.sh","windowed · image rollback",["nautilus"])}
+        ${leaf(638,370,312,32,"Fund nodes","BMN 11 · BBP 151 · BDIF 225 · BMSF 522 · BAIF 591 · BRT 624 · Albert 625",["nautilus"])}
+        ${leaf(630,418,328,28,"host","Amazon Linux 2023 · Docker Compose · SSM · daily backup",["nautilus"])}
+
+        ${server(622,464,344,210,"jellyc-recon · 10.20.10.143 · t3.small",["fundops"])}
+        ${system(630,488,328,138,"Fund Ops  (recon-bot)  :5010 · :5011",["fundops"],"fundops")}
+        ${leaf(638,508,153,32,"app :5010","production · FastAPI · htmx",["fundops"])}
+        ${leaf(797,508,153,32,"app-staging :5011","stage first, then promote",["fundops"])}
+        ${leaf(638,546,153,32,"Postgres 18","fund_recon · …_staging",["fundops"])}
+        ${leaf(797,546,153,32,"jellyc_auth (read-only)","users.json from Nautilus",["fundops"])}
+        ${leaf(638,584,312,32,"SSH :22 over Tailscale","company members · this host only · one key",["fundops"])}
+        ${leaf(630,638,328,28,"host","Amazon Linux 2023 · Docker Compose · SSM · daily backup",["fundops"])}
+
+        ${vpc(982,76,352,490,"jellyc-tyo · 10.30.0.0/16 · Tokyo","",["network","tolas","tap"])}
+        ${leaf(990,100,162,32,"NAT gateway","public-edge-a · Tokyo egress EIP",["network"])}
+        ${leaf(1158,100,156,32,"peering ↔ jellyc-syd","routes + DNS both ways",["network"])}
+        ${server(990,140,336,296,"jellyc-tolas · 10.30.10.213 · t3.large",["tolas"])}
+        ${system(998,164,320,234,"Tolas  :5004",["tolas"],"tolas")}
+        ${leaf(1006,184,304,26,"tolas_app.py  (Flask)","UI + /api · /api/v1 needs an API key",["tolas"])}
+        ${leaf(1006,214,149,26,"funding bots","BBP / BMN",["tolas"])}
+        ${leaf(1161,214,149,26,"basis bots","BBP / BMN",["tolas"])}
+        ${leaf(1006,244,149,26,"rolling bots","near → far",["tolas"])}
+        ${leaf(1161,244,149,26,"iceberg","BDIF · BBP · BMN",["tolas"])}
+        ${leaf(1006,274,149,26,"xex cross-exchange","OKX ↔ Lighter",["tolas"])}
+        ${leaf(1161,274,149,26,"trigger bots","read Trading Monitor",["tolas"])}
+        ${leaf(1006,304,149,26,"Basic orders","manual tickets",["tolas"])}
+        ${leaf(1161,304,149,26,"basic-fill-journal","read-only follower",["tolas"])}
+        ${leaf(1006,334,149,26,"accounts.json","OKX Lighter MEXC HL Binance",["tolas"])}
+        ${leaf(1161,334,149,26,"fills CSV + fills.db","CSV is hot-path SoT",["tolas"])}
+        ${leaf(1006,364,149,26,"users.json + TOTP","fleet login source",["tolas"])}
+        ${leaf(1161,364,149,26,"tailscaled","tag:tolas · UDP 41641",["tolas","network"])}
+        ${leaf(998,404,320,26,"host","Amazon Linux 2023 · systemd · SSM · daily backup",["tolas"])}
+        ${server(990,442,336,116,"jellyc-tap · 10.30.10.34 · t3.small",["tap"])}
+        ${system(998,466,320,56,"TAP console (signet)  ALB :5009 → :80",["tap"],"tap")}
+        ${leaf(1006,486,149,28,"nginx → Next.js","JellyC login · Teams alerts",["tap"])}
+        ${leaf(1161,486,149,28,"Fireblocks desk","HL ↔ Lighter · auto-margin",["tap"])}
+        ${leaf(998,526,320,26,"host","Amazon Linux 2023 · systemd · SSM · daily backup",["tap"])}
+
+        ${vpc(982,574,352,108,"default VPC · us-east-1","not moved",["network","tap"])}
+        ${server(990,598,336,76,"fireblocks-nitro-cosigner · c5.xlarge",["tap"])}
+        ${system(998,622,320,46,"Fireblocks co-signer  (vendor)",["tap"],"tap")}
+        ${leaf(1006,640,149,24,"Nitro co-signer","auto-signs allowed transfers",["tap"])}
+        ${leaf(1161,640,149,24,"public IP · no inbound","S3 + KMS shard store",["tap"])}
+
+        ${group(6,716,628,220,"CeFi / custody venues",["exchanges"],"exchanges")}
+        ${leaf(14,738,148,34,"OKX","Nau · Tolas · TM · LIT",["exchanges"])}
+        ${leaf(168,738,148,34,"Binance","Nau · Tolas · TM · Pulse",["exchanges"])}
+        ${leaf(322,738,148,34,"Deribit","Nautilus · TM",["exchanges"])}
+        ${leaf(476,738,150,34,"Kraken","Nautilus HTTP + WS",["exchanges"])}
+        ${leaf(14,778,148,34,"Gate","Nautilus · TM",["exchanges"])}
+        ${leaf(168,778,148,34,"MEXC","Nau poll · Tolas · TM",["exchanges"])}
+        ${leaf(322,778,148,34,"Coinbase Prime","Nautilus custody",["exchanges"])}
+        ${leaf(476,778,150,34,"Coinbase Exchange","Nautilus poll",["exchanges"])}
+        ${leaf(14,818,148,34,"Hyperliquid","Nau · Tolas · TAP · TM",["exchanges"])}
+        ${leaf(168,818,148,34,"Lighter","Nau · Tolas · TAP · TM",["exchanges"])}
+        ${leaf(322,818,148,34,"Bybit","Trading Monitor",["exchanges"])}
+        ${leaf(476,818,150,34,"Bitget","Trading Monitor",["exchanges"])}
+        ${leaf(14,858,148,34,"BitMEX","Trading Monitor",["exchanges"])}
+        ${leaf(168,858,148,34,"Aster","Trading Monitor",["exchanges"])}
+        ${leaf(322,858,304,34,"Fireblocks","TAP desk + co-signer · Nautilus vault reads",["exchanges"])}
+        ${leaf(14,898,612,30,"Keys live on the calling host","Nautilus secrets/ · Tolas state/accounts.json · TAP .env.local · venue IP allowlists = the NAT EIPs",["exchanges"])}
+        ${group(642,716,368,220,"Info / data / chain / legacy",["infoplat"],"infoplat")}
+        ${leaf(650,738,176,32,"DeBank","Nautilus wallets · Hub units",["infoplat"])}
+        ${leaf(832,738,170,32,"Public RPCs","Nau chains · TAP Arbitrum",["infoplat"])}
+        ${leaf(650,776,176,32,"CoinGecko","Nautilus · BDIF marks",["infoplat"])}
+        ${leaf(832,776,170,32,"CoinMarketCap","Nau · reports · Hub",["infoplat"])}
+        ${leaf(650,814,176,32,"CoinGlass","Trading Monitor funding",["infoplat"])}
+        ${leaf(832,814,170,32,"Token Terminal","TM · 10x Pulse",["infoplat"])}
+        ${leaf(650,852,176,32,"DeFiLlama","HL TVL · 10x Pulse",["infoplat"])}
+        ${leaf(832,852,170,32,"Polymarket Gamma","Monitor Hub",["infoplat"])}
+        ${leaf(650,890,176,34,"NAV Fund Services","reports · Pulse · Fund Ops · W2",["infoplat"])}
+        ${leaf(832,890,170,34,"Haruko","decommissioned · code only",["infoplat"])}
+        ${group(1018,716,316,220,"Notify / SaaS control",["notify"],"notify")}
+        ${leaf(1026,738,146,34,"Power Automate","TM · Hub · TAP alerts",["notify"])}
+        ${leaf(1178,738,148,34,"Microsoft Teams","chat in · replies out",["notify"])}
+        ${leaf(1026,778,146,34,"PagerDuty","seven Hub monitors",["notify"])}
+        ${leaf(1178,778,148,34,"Azure Bot Service","Bot JWT · bot :3978",["notify"])}
+        ${leaf(1026,818,146,34,"Office 365 SMTP","reports · IT daily mail",["notify"])}
+        ${leaf(1178,818,148,34,"Cursor Cloud","WenningNo.2 workplace",["notify"])}
+        ${leaf(1026,858,146,34,"SharePoint / Graph","BBP upload · W2 mail",["notify"])}
+        ${leaf(1178,858,148,34,"Tailscale (SaaS)","tailnet · Funnel · DERP",["notify"])}
+        ${leaf(1026,898,146,30,"Twilio","basis_bot calls · optional",["notify"])}
+        ${leaf(1178,898,148,30,"GitHub","IT report pages · code",["notify"])}
+
+        ${edge([{x:380,y:60},{x:380,y:100}],["network"],"leaf","network")}
+        ${edge([{x:520,y:60},{x:520,y:100}],["network","wenning2"],"leaf","network")}
+        ${edge([{x:1322,y:60},{x:1322,y:377},{x:1310,y:377}],["network","tolas"],"leaf","network")}
+
+        ${edge([{x:22,y:200},{x:18,y:200},{x:18,y:540},{x:22,y:540}],["wenning2","info","reports","monitor"],"spine",null,"1",12,262)}
+        ${edge([{x:18,y:290},{x:22,y:290}],["wenning2","info"],"spine")}
+        ${edge([{x:18,y:372},{x:22,y:372}],["wenning2","reports"],"spine")}
+        ${edge([{x:546,y:198},{x:630,y:198}],["wenning2","nautilus"],"sys",null,"1 as user",572,212)}
+        ${edge([{x:546,y:176},{x:570,y:176},{x:570,y:74},{x:978,y:74},{x:978,y:190},{x:998,y:190}],["wenning2","tolas"],"sys",null,"1",772,75)}
+        ${edge([{x:546,y:374},{x:574,y:374},{x:574,y:230},{x:630,y:230}],["reports","nautilus"],"sys",null,"4 noon",559,306)}
+        ${edge([{x:546,y:484},{x:598,y:484},{x:598,y:244},{x:630,y:244}],["monitor","nautilus"],"sys",null,"2 book",583,420)}
+        ${edge([{x:998,y:204},{x:958,y:204}],["tolas","nautilus"],"sys",null,"5 SSO",962,214)}
+        ${edge([{x:958,y:380},{x:998,y:380}],["nautilus","tolas"],"sys",null,"7 sync",961,392)}
+        ${edge([{x:940,y:488},{x:940,y:410}],["fundops","nautilus"],"sys",null,"6 recon",895,461)}
+        ${edge([{x:998,y:287},{x:978,y:287},{x:978,y:690},{x:10,y:690},{x:10,y:312},{x:22,y:312}],["tolas","info"],"sys",null,"3 trigger",420,691)}
+
+        ${edge([{x:403,y:184},{x:403,y:70},{x:1337,y:70},{x:1337,y:835},{x:1326,y:835}],["wenning2","notify"],"leaf","wenning2")}
+        ${edge([{x:538,y:206},{x:562,y:206},{x:562,y:70},{x:1337,y:70},{x:1337,y:795},{x:1326,y:795}],["wenning2","notify"],"leaf","wenning2")}
+
+        ${edge([{x:60,y:322},{x:60,y:738}],["info","exchanges"],"leaf","info")}
+        ${edge([{x:170,y:322},{x:170,y:696},{x:530,y:696},{x:530,y:818}],["info","exchanges"],"leaf","info")}
+        ${edge([{x:170,y:322},{x:170,y:696},{x:700,y:696},{x:700,y:814}],["info","infoplat"],"leaf","info")}
+        ${edge([{x:170,y:322},{x:170,y:696},{x:900,y:696},{x:900,y:814}],["info","infoplat"],"leaf","info")}
+        ${edge([{x:170,y:322},{x:170,y:696},{x:1100,y:696},{x:1100,y:738}],["info","notify"],"leaf","info")}
+
+        ${edge([{x:290,y:432},{x:290,y:696},{x:740,y:696},{x:740,y:890}],["reports","infoplat"],"leaf","reports")}
+        ${edge([{x:290,y:432},{x:290,y:696},{x:940,y:696},{x:940,y:776}],["reports","infoplat"],"leaf","reports")}
+        ${edge([{x:450,y:432},{x:450,y:696},{x:1060,y:696},{x:1060,y:818}],["reports","notify"],"leaf","reports")}
+        ${edge([{x:150,y:390},{x:150,y:696},{x:1140,y:696},{x:1140,y:858}],["reports","notify"],"leaf","reports")}
+        ${edge([{x:500,y:390},{x:500,y:696},{x:240,y:696},{x:240,y:738}],["reports","exchanges"],"leaf","reports")}
+
+        ${edge([{x:220,y:576},{x:220,y:696},{x:110,y:696},{x:110,y:738}],["monitor","exchanges"],"leaf","monitor")}
+        ${edge([{x:350,y:576},{x:350,y:696},{x:960,y:696},{x:960,y:852}],["monitor","infoplat"],"leaf","monitor")}
+        ${edge([{x:470,y:576},{x:470,y:696},{x:780,y:696},{x:780,y:852}],["monitor","infoplat"],"leaf","monitor")}
+        ${edge([{x:260,y:620},{x:260,y:696},{x:680,y:696},{x:680,y:738}],["monitor","infoplat"],"leaf","monitor")}
+        ${edge([{x:546,y:520},{x:550,y:520},{x:550,y:696},{x:1090,y:696},{x:1090,y:738}],["monitor","notify"],"leaf","monitor")}
+        ${edge([{x:546,y:520},{x:550,y:520},{x:550,y:696},{x:1050,y:696},{x:1050,y:778}],["monitor","notify"],"leaf","monitor")}
+
+        ${edge([{x:950,y:234},{x:970,y:234},{x:970,y:696},{x:610,y:696},{x:610,y:738}],["nautilus","exchanges"],"leaf","nautilus")}
+        ${edge([{x:950,y:234},{x:970,y:234},{x:970,y:696},{x:400,y:696},{x:400,y:778}],["nautilus","exchanges"],"leaf","nautilus")}
+        ${edge([{x:950,y:234},{x:970,y:234},{x:970,y:696},{x:760,y:696},{x:760,y:776}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:950,y:310},{x:970,y:310},{x:970,y:696},{x:720,y:696},{x:720,y:738}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:950,y:310},{x:970,y:310},{x:970,y:696},{x:880,y:696},{x:880,y:738}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:950,y:310},{x:970,y:310},{x:970,y:696},{x:430,y:696},{x:430,y:858}],["nautilus","exchanges"],"leaf","nautilus")}
+
+        ${edge([{x:800,y:626},{x:800,y:890}],["fundops","infoplat"],"leaf","fundops")}
+
+        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:130,y:696},{x:130,y:738}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:300,y:696},{x:300,y:738}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:200,y:696},{x:200,y:778}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:40,y:696},{x:40,y:818}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:280,y:696},{x:280,y:818}],["tolas","exchanges"],"leaf","tolas")}
+
+        ${edge([{x:1318,y:500},{x:1330,y:500},{x:1330,y:696},{x:360,y:696},{x:360,y:858}],["tap","exchanges"],"leaf","tap")}
+        ${edge([{x:1318,y:500},{x:1330,y:500},{x:1330,y:696},{x:80,y:696},{x:80,y:818}],["tap","exchanges"],"leaf","tap")}
+        ${edge([{x:1318,y:500},{x:1330,y:500},{x:1330,y:696},{x:250,y:696},{x:250,y:818}],["tap","exchanges"],"leaf","tap")}
+        ${edge([{x:1318,y:500},{x:1330,y:500},{x:1330,y:696},{x:1150,y:696},{x:1150,y:738}],["tap","notify"],"leaf","tap")}
+        ${edge([{x:1318,y:652},{x:1330,y:652},{x:1330,y:696},{x:380,y:696},{x:380,y:858}],["tap","exchanges"],"leaf","tap")}
+
+        ${caption(16,710,"EXTERNAL  ·  GROUP is level 2  ·  provider is level 3")}
       </svg>`;
     }
 
@@ -384,14 +481,763 @@
 
     const TABS = [
       { id:"fleet", label:"Fleet" },
+      { id:"network", label:"Network · VPC" },
       { id:"wenning2", label:"WenningNo.2" },
-      { id:"info", label:"Info Dashboard" },
+      { id:"info", label:"Trading Monitor" },
       { id:"reports", label:"Daily Report" },
-      { id:"monitor", label:"Monitor" },
+      { id:"monitor", label:"Monitor Hub" },
       { id:"nautilus", label:"Nautilus" },
+      { id:"fundops", label:"Fund Ops" },
       { id:"tolas", label:"Tolas" },
+      { id:"tap", label:"TAP + co-signer" },
     ];
-    const DIAGRAMS = {"wenning2": [{"title": "Host topology", "src": "flowchart TB\n  subgraph S1[\"SERVER · AWS Sydney reports EC2 · 3.25.77.33\"]\n    subgraph SYS[\"SYSTEM · WenningNo.2 :3978\"]\n      CF[\"cloudflared → :3978\"]\n      BOT[\"bot FastAPI\"]\n      POL[\"policy + ACL\"]\n      CBR[\"cursor_bridge\"]\n      JOB[\"JobManager\"]\n      ENV[\"teams-agent/.env\"]\n      CF --> BOT --> POL\n      POL --> CBR\n      POL --> JOB\n      ENV --- POL\n    end\n  end\n  subgraph GN[\"GROUP · Notify\"]\n    TEAMS[\"Microsoft Teams\"]\n    AZ[\"Azure Bot Service\"]\n    CUR[\"Cursor Cloud\"]\n  end\n  subgraph HOPS[\"SYSTEM hops · API keys\"]\n    NAU[\"Nautilus :5000\"]\n    TOL[\"Tolas :5004\"]\n    REP[\"Info / Daily / Hub / Pulse\"]\n  end\n  TEAMS --> AZ -->|JWT| CF\n  CBR -->|CURSOR_API_KEY| CUR\n  CUR --> NAU\n  CUR --> TOL\n  CUR --> REP\n  JOB --> NAU\n  JOB --> TOL\n  JOB --> REP"}, {"title": "How a request runs", "src": "sequenceDiagram\n  participant U as Teams user\n  participant T as Teams / Azure Bot\n  participant B as WenningNo.2 bot\n  participant P as Policy + ACL\n  participant C as Cursor API\n  participant W as Cursor workplace VM\n  participant H as tolas / reports / dumpling\n\n  U->>T: chat message\n  T->>B: POST /api/messages (Bot JWT)\n  B->>P: classify + mutation ACL\n  alt reject secret/code\n    P-->>U: refuse\n  else need confirm mutation\n    P-->>U: Adaptive Card / confirm\n  else allow cursor_workplace\n    B->>C: create / follow-up agent run\n    C->>W: agent + AGENTS.md / allowlist\n    W->>H: frontend-equivalent HTTP\n    C-->>B: run FINISHED + result\n    B-->>U: proactive Teams reply\n  else allow local mode\n    B->>H: JobManager + clients\n    B-->>U: job result\n  end"}, {"title": "Trust boundaries & secrets", "src": "flowchart LR\n  subgraph External\n    Teams\n    CursorAPI[\"api.cursor.com\"]\n  end\n  subgraph BotHost[\"reports EC2 bot\"]\n    BF[\"Bot Framework adapter\"]\n    Pol[\"policy / acl / allowlist\"]\n    Env[\".env keys\"]\n    State[\"state/*.json\"]\n  end\n  subgraph Workplace[\"Cursor env VM\"]\n    Agents[\"AGENTS.md soft boundary\"]\n    Keys[\"product API keys\"]\n  end\n  subgraph Products\n    Tolas\n    Reports\n    Nautilus\n  end\n\n  Teams -->|JWT| BF\n  BF --> Pol\n  Pol -->|CURSOR_API_KEY| CursorAPI\n  CursorAPI --> Agents\n  Env --> Pol\n  Keys --> Tolas\n  Keys --> Reports\n  Keys --> Nautilus\n  Pol -.->|local mode| Tolas"}, {"title": "Overview", "src": "flowchart LR\n  TeamsUser --> MicrosoftTeams\n  MicrosoftTeams --> AzureBotService\n  AzureBotService -->|JWT /api/messages :3978| WenningNo2Bot\n  WenningNo2Bot --> PolicyACL\n  PolicyACL -->|local| LocalJobQueue\n  PolicyACL -->|workplace| CursorBridge\n  CursorBridge -->|CURSOR_API_KEY| CursorCloudAPI\n  CursorCloudAPI --> CursorWorkplace\n  CursorWorkplace --> TolasAPI\n  CursorWorkplace --> ReportsAPIs\n  CursorWorkplace --> DumplingAPI\n  LocalJobQueue --> TolasAPI\n  LocalJobQueue --> ReportsAPIs\n  LocalJobQueue --> DumplingAPI\n  CursorBridge --- SessionStore\n  LocalJobQueue --- JobStore"}], "info": [{"title": "Trust-boundary diagram", "src": "flowchart TB\n  U[\"Any browser · no login\"]\n  subgraph S1[\"SERVER · AWS Sydney reports EC2 · 3.25.77.33\"]\n    subgraph SYS[\"SYSTEM · Info Dashboard :5000\"]\n      TM[\"okx-basis-monitor · Flask · public POST\"]\n      FAV[\"favorites*.json\"]\n      MOD[\"predictor models\"]\n      TM --- FAV\n      TM --- MOD\n    end\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    OKX[\"OKX\"]\n    DER[\"Deribit\"]\n  end\n  subgraph INFO[\"GROUP · Info\"]\n    CGL[\"CoinGlass\"]\n    TT[\"Token Terminal\"]\n  end\n  subgraph NOT[\"GROUP · Notify\"]\n    PA[\"Power Automate FLOW_URL\"]\n  end\n  U --> TM\n  TM -.-> OKX\n  TM -.-> DER\n  TM -.-> CGL\n  TM -.-> TT\n  TM -.-> PA"}, {"title": "Data-flow / abuse-path", "src": "sequenceDiagram\n  participant A as Anonymous client\n  participant TM as :5000 Flask\n  participant Disk as /app/data favorites*.json\n  participant UP as OKX / CoinGlass / TT\n  participant Teams as Power Automate webhook\n\n  Note over A,TM: No session, API key, CSRF token, or IP allowlist\n\n  A->>TM: GET /api/favorites (and siblings)\n  TM->>Disk: read\n  TM-->>A: full favorites list\n\n  A->>TM: POST /api/favorites {\"favorites\":[…]}\n  TM->>Disk: overwrite shared JSON\n  TM-->>A: success (integrity loss / wipe)\n\n  A->>TM: POST /api/send-favorites-to-teams\n  TM->>UP: fetch live rates for supplied symbols\n  TM->>Teams: POST Adaptive Card\n  Note right of Teams: Spam / phishing into org channel<br/>Webhook is effective credential\n\n  A->>TM: POST /api/predicted-funding/refresh\n  TM-->>A: refresh queued (CPU / upstream DoS assist)\n\n  A->>TM: GET /api/spread-history?… (poll)\n  TM->>UP: fan-out / cache miss\n  TM-->>A: market data (info disclosure OK if intentional)"}], "reports": [{"title": "Host / process map", "src": "flowchart TB\n  Browser[\"Analyst browser\"]\n  subgraph S1[\"SERVER · AWS Sydney reports EC2 · 3.25.77.33\"]\n    subgraph SYS[\"SYSTEM · Daily Report :5001–5003 + Unified + Pulse\"]\n      UNI[\"Unified :5006\"]\n      BDIF[\"BDIF :5001\"]\n      BBP[\"BBP :5002\"]\n      BMN[\"BMN :5003\"]\n      PUL[\"Pulse :5007\"]\n      DB[\"reports.db WAL\"]\n      ENV[\"Auto_Report/*/env\"]\n      AUTH[\"jellyc_auth/\"]\n      UNI --> BDIF\n      UNI --> BBP\n      UNI --> BMN\n      UNI --> PUL\n      BDIF --- DB\n      BBP --- DB\n      BMN --- DB\n      ENV --- BDIF\n      AUTH --- UNI\n    end\n  end\n  subgraph INFO[\"GROUP · Info\"]\n    NAU[\"Nautilus noon book\"]\n    HAR[\"Haruko\"]\n    NAV[\"NAV Fund Services\"]\n    CMC[\"CoinMarketCap\"]\n  end\n  subgraph NOT[\"GROUP · Notify\"]\n    SMTP[\"Office365 SMTP\"]\n    SP[\"SharePoint\"]\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    BIN[\"Binance\"]\n    BYB[\"Bybit\"]\n  end\n  Browser --> UNI\n  BDIF -.-> NAU\n  BMN -.-> NAU\n  BBP -.-> NAU\n  BDIF -.-> HAR\n  BDIF -.-> NAV\n  BMN -.-> CMC\n  BDIF -.-> SMTP\n  BBP -.-> SP\n  PUL -.-> BIN\n  PUL -.-> BYB"}, {"title": "Repository structure", "src": "flowchart LR\n  subgraph Apps[\"Fund apps\"]\n    BMN[\"BMN_Daily_Report/\"]\n    BBP[\"BBP_Daily_Report/\"]\n    BDIF[\"BDIF_Daily_Report/\"]\n    BASIS[\"Basis_Bot_Daily_Report/\"]\n  end\n\n  subgraph Front[\"Entry / Pulse\"]\n    UNI[\"Unified_Dashboard/\"]\n    PUL[\"bdif-pulse-dashboard/\"]\n  end\n\n  subgraph Shared[\"Shared libraries\"]\n    AUTH[\"Shared_Auth/\"]\n    DB[\"common/db/\"]\n    WEB[\"common/web/\"]\n    PR[\"common/pricing/\"]\n    SDK[\"python_SDK/ Haruko\"]\n  end\n\n  subgraph Ops[\"Ops\"]\n    DEP[\"deploy/\"]\n    DATA[\"data/ reports.db gitignored\"]\n    TST[\"tests/\"]\n  end\n\n  Apps --> Shared\n  Front --> Shared\n  DEP --> Apps"}, {"title": "How a request runs", "src": "flowchart TB\n  subgraph T1[\"Trust: Internet\"]\n    U[\"User + password + TOTP\"]\n  end\n\n  subgraph T2[\"Trust: EC2 Flask fleet\"]\n    LOGIN[\"POST /login<br/>session cookie jellyc_session<br/>HttpOnly, SameSite=Lax<br/>SECURE=off if AUTH_HTTPS=0\"]\n    GATE[\"before_request require_login\"]\n    API[\"Any logged-in user:<br/>generate / delete / email / capital_flow\"]\n  end\n\n  subgraph T3[\"Trust: external APIs\"]\n    DUMP[\"Dumpling<br/>HTTP default + Bearer DUMPLING_API_KEY\"]\n    HAR[\"Haruko HTTPS<br/>HARUKO_KEY\"]\n    NAV[\"NAV Fund Services HTTPS<br/>HMAC NAV_API_KEY/SECRET\"]\n    SMTP[\"Office365 SMTP<br/>EMAIL_*\"]\n    CMC[\"CMC public HTTPS\"]\n    SP[\"SharePoint Graph optional BBP<br/>AZURE_*\"]\n  end\n\n  subgraph T4[\"Trust: data plane\"]\n    SQLITE[(\"reports.db WAL<br/>snapshots, capital_flows,<br/>reports index, NAV cache\")]\n    FILES[\"reports/*.txt on disk\"]\n  end\n\n  U --> LOGIN --> GATE --> API\n  API --> DUMP & HAR & NAV & SMTP & CMC & SP\n  API --> SQLITE & FILES"}, {"title": "Where secrets and data are held", "src": "flowchart TB\n  subgraph Secrets[\"Secrets\"]\n    ENVF[\"Host: Auto_Report/*/env<br/>DUMPLING_API_KEY, HARUKO_KEY,<br/>NAV_*, EMAIL_*, AZURE_*\"]\n    IMG[\"Docker image COPY env<br/>baked at build — residual risk\"]\n    AUTHST[\"jellyc_auth/<br/>users.json, secret_key\"]\n  end\n\n  subgraph Persist[\"Authoritative persistence\"]\n    DB[(\"auto-report-data/reports.db<br/>→ container /data/reports.db\")]\n    RPT[\"reports/ *.txt report bodies\"]\n    PULSEDB[(\"pulse state/pulse.db\")]\n  end\n\n  ENVF -->|ro mount /app/env| CTR[\"Fund containers\"]\n  AUTHST -->|mount /app/state| CTR\n  DB -->|rw /data| CTR\n  RPT --> CTR"}], "monitor": [{"title": "Structure", "src": "flowchart TB\n  Browser[\"Operator browser\"]\n  subgraph S1[\"SERVER · AWS Sydney reports EC2 · 3.25.77.33\"]\n    subgraph SYS[\"SYSTEM · Monitor Hub :5005\"]\n      HUB[\"Flask Hub · TOTP / API key\"]\n      DCLI[\"dumpling_client\"]\n      AUTH[\"jellyc_auth/\"]\n      M11[\"BMN delta · node 11\"]\n      M151[\"BBP exposure · node 151\"]\n      M193[\"basis_bot · node 193\"]\n      MMAR[\"margin_risk\"]\n      MLIT[\"LIT price\"]\n      MPOLY[\"Polymarket\"]\n      MTVL[\"HL TVL\"]\n      M10X[\"10x Pulse\"]\n      HUB --> M11\n      HUB --> M151\n      HUB --> M193\n      HUB --> MMAR\n      HUB --> MLIT\n      HUB --> MPOLY\n      HUB --> MTVL\n      HUB --> M10X\n      M11 --> DCLI\n      M151 --> DCLI\n      M193 --> DCLI\n      MMAR --> DCLI\n      AUTH --- HUB\n    end\n  end\n  subgraph HOP[\"SYSTEM hop\"]\n    NAU[\"Nautilus book\"]\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    OKX[\"OKX ticker\"]\n  end\n  subgraph INFO[\"GROUP · Info\"]\n    GAM[\"Polymarket Gamma\"]\n    LL[\"DeFiLlama\"]\n  end\n  subgraph NOT[\"GROUP · Notify\"]\n    PA[\"Power Automate\"]\n    PD[\"PagerDuty\"]\n    TEAMS[\"Teams\"]\n  end\n  Browser --> HUB\n  DCLI -->|2 book| NAU\n  MLIT -.-> OKX\n  MPOLY -.-> GAM\n  MTVL -.-> LL\n  M10X -.-> LL\n  HUB -.-> PA --> TEAMS\n  HUB -.-> PD"}, {"title": "Runtime sequence", "src": "sequenceDiagram\n  participant Op as Operator\n  participant Hub as Flask Hub\n  participant PM as process_manager\n  participant Mon as Monitor child\n  participant API as External API\n  participant Alert as Teams or PagerDuty\n\n  Op->>Hub: login password+TOTP or API key\n  Op->>Hub: POST start monitor\n  Hub->>PM: start id\n  PM->>Mon: Popen python script\n  loop poll interval\n    Mon->>API: fetch\n    API-->>Mon: JSON\n    alt breach confirmed\n      Mon->>Alert: notify\n    end\n  end\n  Op->>Hub: POST config writes env"}, {"title": "Trust boundaries", "src": "flowchart LR\n  TB1[\"TB1 Internet can reach :5005\"]\n  TB2[\"TB2 Authenticated Hub\"]\n  TB3[\"TB3 Container and host mount secrets\"]\n  TB4[\"TB4 Dumpling API key TLS verify often off\"]\n  TB5[\"TB5 FLOW_URL and PagerDuty routing key\"]\n\n  TB1 --> TB2\n  TB2 --> TB3\n  TB3 --> TB4\n  TB3 --> TB5"}], "nautilus": [{"title": "System landscape", "src": "flowchart TB\n  OP[\"Operators / scripts · API key\"]\n  subgraph S1[\"SERVER · AWS Sydney Nautilus EC2 · :5000 TLS\"]\n    subgraph SYS[\"SYSTEM · Nautilus dumpling PMS\"]\n      EDGE[\"Host edge :5000\"]\n      FE[\"frontend nginx\"]\n      BE[\"backend ×2\"]\n      SCH[\"scheduler\"]\n      STR[\"streamer\"]\n      PG[\"Postgres 16\"]\n      SEC[\"secrets/accounts.json\"]\n      ENV[\".env\"]\n      CC[\"chain_connector\"]\n      BAK[\"backups/ 14d\"]\n      EDGE --> FE --> BE --> PG\n      SCH --> PG\n      STR --> PG\n      SEC --- SCH\n      SEC --- STR\n      ENV --- BE\n      CC --- SCH\n      PG --> BAK\n    end\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    VEN[\"OKX Binance Deribit Kraken Gate<br/>MEXC Coinbase HL Lighter\"]\n  end\n  subgraph INFO[\"GROUP · Info\"]\n    DBK[\"DeBank\"]\n    RPC[\"Public RPCs\"]\n    CG[\"CoinGecko\"]\n    HAR[\"Haruko backfill\"]\n  end\n  subgraph HOP[\"SYSTEM hops\"]\n    TOL[\"Tolas live orders\"]\n    USR[\"Tolas users.json SSH sync\"]\n  end\n  OP --> EDGE\n  SCH -.-> VEN\n  STR -.-> VEN\n  SCH -.-> DBK\n  SCH -.-> RPC\n  SCH -.-> CG\n  BE -.-> HAR\n  BE -->|5 orders| TOL\n  USR --> SEC"}, {"title": "How a request is served", "src": "flowchart LR\n    subgraph UI[\"frontend — React + Ant Design + AG Grid\"]\n        LOGIN[Login<br/>email + password + TOTP]\n        DASH[Funds dashboard]\n        SUM[Summary<br/>equity delta positions margin]\n        RISK[Risk Pivot]\n        PNL[P&L Report]\n        ACT[Trades and Transfers<br/>on-chain txs · adjustments]\n        ADD[Add account / add transfer]\n        CSV[CSV export]\n    end\n\n    subgraph Nginx[\"frontend container\"]\n        NGX[\"nginx :80<br/>host :5000\"]\n        DOCS[\"/docs /openapi.json<br/>unauthenticated\"]\n        HLTH[\"/api/health<br/>unauthenticated\"]\n    end\n\n    subgraph API[\"backend — FastAPI /api\"]\n        AUTH[auth.py<br/>login logout me]\n        NODES[\"nodes.py<br/>nodes summary risk pnl<br/>trades transfers txs captures\"]\n        EXP[export.py<br/>history CSVs]\n        BOOK[book_admin.py<br/>accounts transfers]\n        MW[auth middleware<br/>session cookie or API key<br/>RBAC + node_closure]\n    end\n\n    subgraph Core[\"backend services — derived, not stored\"]\n        HIER[hierarchy + closure]\n        AGG[aggregation / valuation]\n        RP[riskpnl + attribution]\n        FLOW[flows / movements]\n        QUAL[data quality]\n        PRICE[pricing waterfall]\n        BA[book_admin writes]\n    end\n\n    LOGIN --> NGX\n    DASH & SUM & RISK & PNL & ACT & ADD & CSV --> NGX\n    NGX --> AUTH & NODES & EXP & BOOK\n    NGX --> DOCS & HLTH\n    AUTH & NODES & EXP & BOOK --> MW\n    MW --> HIER & AGG & RP & FLOW & QUAL & PRICE & BA"}, {"title": "How the book is filled", "src": "flowchart TB\n    subgraph Scheduler[\"scheduler — python -m app.scheduler\"]\n        H[Hourly capture :02<br/>importers.refresh]\n        C[Live CeFi ~60s<br/>venue balances + prices]\n        D[Live DeFi hourly<br/>wallets / DeBank / RPCs]\n        R[Repricing every minute<br/>wallet + static valued at live books]\n        P[Daily price book 03:00 UTC+8<br/>unquoted assets]\n        S[Static + accrual<br/>effective-dated entries]\n    end\n\n    subgraph Streamer[\"streamer — python -m app.streamer\"]\n        WS[\"One WS thread per account<br/>OKX Binance Deribit Kraken Gate Hyperliquid\"]\n        WR[Single writer thread<br/>batched commits ~1s]\n        POLL[\"HTTP poll fallback ~60s<br/>venues with no private stream<br/>+ any dead socket\"]\n        RS[Resync on connect<br/>gap around disconnects]\n    end\n\n    subgraph Manual[\"Manual / migration — docker compose exec\"]\n        HA[importers.activity<br/>Haruko trades + transfers]\n        VA[importers.venue_activity<br/>venue history backfill]\n        CA[importers.chain_activity<br/>DeBank history]\n        ST[statics / wallets / prices]\n        FIX[\"repair / classify / validate / prune\"]\n    end\n\n    subgraph Adapters[\"Adapters on RO mounts\"]\n        VEN[\"validation/venues/<br/>10 HTTP adapters\"]\n        STM[\"validation/venues/streams/<br/>6 WS feeds\"]\n        CH[\"chain_connector/<br/>DeBank + non-EVM RPCs\"]\n    end\n\n    C --> VEN\n    H --> VEN\n    H --> CH\n    D --> CH\n    WS --> STM\n    POLL --> VEN\n    RS --> VEN\n    HA -.->|HARUKO_KEY on backend only| HARUKO[Haruko]\n    VA --> VEN\n    CA --> CH\n    STM --> WR\n    POLL --> WR"}, {"title": "What Postgres holds", "src": "erDiagram\n    NODE ||--o{ ACCOUNT_DETAIL : \"account layer\"\n    NODE ||--o{ NODE_CLOSURE : \"ancestor path\"\n    NODE ||--o{ CAPTURE : \"hourly / live\"\n    CAPTURE ||--o{ BALANCE_ROW : has\n    CAPTURE ||--o{ POSITION_ROW : has\n    CAPTURE ||--o{ MARGIN_ROW : has\n    NODE ||--o{ TRADE : \"fills\"\n    NODE ||--o{ CAPITAL_FLOW : \"transfers\"\n    NODE ||--o{ BALANCE_ADJUSTMENT : \"manual / accrual\"\n    NODE ||--o{ CHAIN_TRANSACTION : \"on-chain legs\"\n    NODE ||--o{ STATIC_BALANCE_ENTRY : \"effective-dated\"\n    STATIC_BALANCE_ENTRY ||--o{ STATIC_ACCRUAL : rules\n    NODE ||--o{ EQUITY_POINT : derived\n    APP_USER ||--o{ USER_SESSION : sessions\n    APP_USER ||--o{ API_KEY : \"hashed dmp_\"\n    APP_USER ||--o{ USER_NODE_ACCESS : grants\n    APP_USER ||--o{ AUDIT_EVENT : audit\n\n    NODE {\n        int id\n        string name\n        string external_ref\n    }\n    CAPTURE {\n        timestamptz capture_ts\n        bool is_live\n    }\n    TRADE {\n        string trade_key UK\n        string source_type\n    }\n    CAPITAL_FLOW {\n        string external_id\n        string classification\n    }"}, {"title": "Identity, secrets, and access", "src": "flowchart TB\n    subgraph Tokyo[\"Tolas Tokyo\"]\n        U[(users.json<br/>bcrypt + TOTP)]\n        SK[Flask / jellyc secret_key]\n    end\n\n    subgraph Sync[\"ops/sync_jellyc_auth.sh\"]\n        SSH[SSH over PEMs]\n    end\n\n    subgraph Mount[\"Sydney secrets/ → /srv/secrets RO\"]\n        JA[jellyc_auth/users.json]\n        ACC[accounts.json<br/>venue API keys]\n    end\n\n    subgraph AuthN[\"backend auth\"]\n        LOGIN[POST /auth/login]\n        COOKIE[\"cookie dumpling_session<br/>HttpOnly Lax Secure=false\"]\n        KEY[\"API key dmp_…<br/>SHA-256 in api_key\"]\n        RL[in-process fail lockout<br/>not shared across 2 workers]\n    end\n\n    subgraph AuthZ[\"RBAC + scope\"]\n        ROLE[\"VIEWER < OPERATOR < ADMIN\"]\n        GRANT[user_node_access]\n        CLOS[node_closure]\n        DEF[\"JELLYC_DEFAULT_ROLE=ADMIN\"]\n    end\n\n    U --> SSH --> JA\n    SK --> SSH\n    JA --> LOGIN\n    LOGIN --> COOKIE\n    LOGIN --> RL\n    KEY --> ROLE\n    COOKIE --> ROLE\n    ROLE --> GRANT --> CLOS\n    DEF --> ROLE\n    ACC --> SCH[scheduler / streamer venue calls]"}], "tolas": [{"title": "Deployment & trust boundaries", "src": "flowchart TB\n  UI[\"Browser → :5004\"]\n  subgraph S1[\"SERVER · AWS Tokyo Tolas EC2 · 13.231.196.249\"]\n    subgraph SYS[\"SYSTEM · Tolas :5004\"]\n      FL[\"Flask tolas_app.py\"]\n      WRK[\"in-process daemons\"]\n      BF[\"funding bots\"]\n      BB[\"basis bots\"]\n      BR[\"rolling bots\"]\n      BI[\"iceberg\"]\n      BX[\"xex\"]\n      ACC[\"accounts.json\"]\n      FILL[\"fills CSV + fills.db\"]\n      USR[\"users.json + TOTP\"]\n      FL --> WRK\n      FL --> BF\n      FL --> BB\n      FL --> BR\n      FL --> BI\n      FL --> BX\n      ACC --- FL\n      ACC --- BF\n      FILL --- FL\n      USR --- FL\n    end\n  end\n  subgraph CEFI[\"GROUP · CeFi\"]\n    OKX[\"OKX\"]\n    LTR[\"Lighter\"]\n    MXC[\"MEXC\"]\n    HL[\"Hyperliquid\"]\n  end\n  subgraph HOP[\"SYSTEM hops\"]\n    INFO[\"Info Dashboard · trigger\"]\n    NAU[\"Nautilus · live orders\"]\n  end\n  UI --> FL\n  BF -.-> OKX\n  BF -.-> LTR\n  BF -.-> HL\n  BI -.-> MXC\n  FL -->|3 trigger| INFO\n  NAU -->|5 orders| FL"}, {"title": "Process & data flow", "src": "sequenceDiagram\n  participant Op as Operator\n  participant T as Tolas Flask :5004\n  participant Reg as accounts.json\n  participant Bot as Bot process\n  participant Ex as Exchange APIs\n  participant CSV as bot_dir/*_log_*.csv\n  participant SQL as state/fills.db\n\n  Op->>T: login (password + TOTP)\n  Op->>T: set params / start bot\n  T->>Reg: resolve LEG_*_ACCOUNT (+ fund tag check)\n  T->>Bot: spawn with injected OKX_/LIGHTER_/… env\n  Bot->>Ex: WS/REST orders & hedges\n  Bot->>CSV: append-only fills (hot-path SoT)\n  Note over Bot,CSV: No SQL write on trading path\n  T->>CSV: read for live UI / history\n  T->>SQL: async ingest (fingerprint size:mtime_ns)\n  T->>Ex: signed reads (fills, candles, verify)"}, {"title": "Authentication surfaces", "src": "flowchart LR\n  subgraph Open[\"Unauthenticated at app layer\"]\n    L[\"/login /logout\"]\n    H[\"/healthz\"]\n    S[\"/static/*\"]\n    V1[\"/api/v1/*  ← NO TOTP<br/>network IP gate only\"]\n  end\n\n  subgraph Gated[\"Session required (password + TOTP)\"]\n    Dash[\"/  UI\"]\n    API[\"/api/*  dashboard JSON\"]\n    Acc[\"/accounts CRUD\"]\n  end\n\n  Open --> Net[\"Must be SG / nginx restricted\"]\n  Gated --> Cookie[\"Signed session cookie<br/>secret_key in AUTH_STATE_DIR\"]"}]};
+    const DIAGRAMS = {
+      network: [
+        { title: "VPCs, subnets and routes", src: `flowchart LR
+  subgraph SYD["VPC jellyc-syd · 10.20.0.0/16"]
+    direction TB
+    subgraph APP["private-app a / b"]
+      direction TB
+      ALB["internal ALB jellyc-ops-int<br/>:80 · :443 · :5000–5011"]
+      RA["router a · Funnel<br/>10.20.10.53"]
+      RB["router b<br/>10.20.11.188"]
+      REP["jellyc-reports<br/>10.20.10.253"]
+      NAU["jellyc-nautilus<br/>10.20.10.31"]
+      REC["jellyc-recon<br/>10.20.10.143"]
+    end
+    subgraph PE["public-edge a / b"]
+      direction TB
+      NATS["NAT gateway · Sydney EIP<br/>10.20.0.0/24 · 10.20.1.0/24"]
+      IGWS["internet gateway<br/>NACL denies inbound 22 · 3389"]
+    end
+    subgraph DATA["private-data a / b"]
+      EMPTY["10.20.20.0/24 · 10.20.21.0/24<br/>reserved · no hosts"]
+    end
+    VPCE["SSM interface endpoints · S3 gateway<br/>flow logs 30 days · GuardDuty"]
+  end
+  PCX["VPC peering<br/>10.20.0.0/16 ↔ 10.30.0.0/16"]
+  subgraph TYO["VPC jellyc-tyo · 10.30.0.0/16"]
+    direction TB
+    subgraph TRD["private-trading a"]
+      direction TB
+      TOL["jellyc-tolas<br/>10.30.10.213"]
+      TAP["jellyc-tap<br/>10.30.10.34"]
+    end
+    subgraph PET["public-edge a"]
+      NATT["NAT gateway · Tokyo EIP<br/>10.30.0.0/24"]
+    end
+  end
+  subgraph USE["us-east-1 default VPC"]
+    COS["fireblocks-nitro-cosigner<br/>public IP · no inbound rule"]
+  end
+  R53["Route 53 private zone<br/>jellyc.internal · both VPCs"]
+  REP & NAU & REC & RA & RB --> NATS --> IGWS
+  ALB -->|":5004 · :5009 IP targets"| PCX
+  PCX --> TOL & TAP
+  TOL & TAP --> NATT
+  R53 -.-> REP & NAU & TOL & TAP` },
+        { title: "Front door: internal ALB listener → target", src: `flowchart LR
+  TS["Colleague on Tailscale<br/>Microsoft login"] --> RT["router a / b<br/>advertise 10.20/16 + 10.30/16"]
+  RT --> ALB["internal ALB jellyc-ops-int<br/>JellyC private CA certificate"]
+  ALB -->|":443"| NAU["Nautilus · nginx :5000 TLS"]
+  ALB -->|":5000"| TM["Trading Monitor :5000"]
+  ALB -->|":5001 · :5002 · :5003 · :5008"| RPT["BDIF · BBP · BMN · BRT"]
+  ALB -->|":5005"| HUB["Monitor Hub :5005"]
+  ALB -->|":5006"| UNI["Unified :5006"]
+  ALB -->|":5007"| PUL["Pulse :5007"]
+  ALB -->|":5004 · IP target across the peering"| TOL["Tolas :5004"]
+  ALB -->|":5009 · IP target across the peering"| TAP["TAP console :80"]
+  ALB -->|":5010 · :5011"| FO["Fund Ops prod · staging"]
+  ALB -->|":80"| R["redirect to :443"]` },
+        { title: "Who may reach what (Tailscale ACL)", src: `flowchart LR
+  M["autogroup:member<br/>every jellyc.io account"] --> P1["Sydney :443 · :5000–5003 · :5005–5008<br/>:5010 · :5011 Fund Ops · recon SSH :22 · arb-lab panel :80"]
+  T["group:traders"] --> P2["Tolas :5004 · TAP :5009"]
+  A["group:admins"] --> P3["both VPCs · every port"]
+  K["tag:api-client"] --> P4["Sydney :443 · :5000–5011<br/>each system's API key still required"]
+  B["tag:arb-server · arb-lab"] --> P5["Tolas :5004 direct · Sydney :443 · :5000 · :5004 · :5009"]
+  R["tag:router · router a and b"] --> P6["both VPCs · Funnel on router a"]
+  TT["tag:tolas · jellyc-tolas"] --> P7["advertises 10.30.10.213/32 only"]` },
+        { title: "Funnel, Teams and admin paths", src: `flowchart LR
+  CUR["Cursor Cloud agent<br/>WenningNo.2 workplace"] -->|"https · /name/api + API key"| FUN["Tailscale Funnel on router a<br/>public cert · API paths only"]
+  FUN -->|"/tolas/api"| TOL["tolas.jellyc.internal:5004"]
+  FUN -->|"/nautilus/api"| NAU["nautilus.jellyc.internal:5000"]
+  FUN -->|"/market /bdif /bbp /bmn /hub /unified /pulse /brt"| REP["reports.jellyc.internal :5000–5008"]
+  TEAMS["Teams → Azure Bot Service"] -->|"messaging endpoint"| RA["router a"]
+  RA -->|"security group: :3978 from router a only"| BOT["WenningNo.2 :3978"]
+  ADM["Admins · Grok Bots"] -->|"AWS API"| SSM["SSM · Session Manager · fixed probe documents"]
+  SSM --> HOSTS["every fleet host · no SSH from the internet"]` },
+        { title: "Egress and venue IP allowlists", src: `flowchart LR
+  subgraph SYDN["Sydney"]
+    H1["reports · Nautilus · recon · routers"] --> N1["NAT gateway · Sydney EIP"]
+  end
+  subgraph TYON["Tokyo"]
+    H2["Tolas · TAP"] --> N2["NAT gateway · Tokyo EIP"]
+  end
+  N1 --> V1["venues · data APIs · SaaS<br/>Nautilus venue keys allowlist the Sydney EIP"]
+  N2 --> V2["venues · Fireblocks<br/>Tolas venue keys allowlist the Tokyo EIP"]
+  E["S3 gateway + SSM interface endpoints"] -.- H1
+  E -.- H2` },
+      ],
+      wenning2: [
+        { title: "Host topology", src: `flowchart TB
+  subgraph S1["SERVER · jellyc-reports"]
+    subgraph SYS["SYSTEM · WenningNo.2 :3978"]
+      IN["inbound :3978 · router a only"]
+      BOT["bot FastAPI · wenningno2.service"]
+      POL["policy + ACL · allowlist.yaml"]
+      CBR["cursor_bridge"]
+      JOB["JobManager + clock · ST-001 … ST-012"]
+      CLI["clients/ · Nautilus · Tolas · reports · NAV · Graph mail"]
+      IN --> BOT --> POL
+      POL --> CBR
+      POL --> JOB --> CLI
+    end
+  end
+  subgraph GN["GROUP · Notify / SaaS"]
+    TEAMS["Microsoft Teams"]
+    AZ["Azure Bot Service"]
+    CUR["Cursor Cloud"]
+    GRAPH["Microsoft Graph mail"]
+  end
+  subgraph NET["NETWORK"]
+    RA["router a · Funnel"]
+  end
+  subgraph HOPS["SYSTEM hops · API keys"]
+    NAU["Nautilus · nautilus.jellyc.internal"]
+    TOL["Tolas · tolas.jellyc.internal"]
+    REP["Trading Monitor · reports · Hub · Pulse · same host"]
+  end
+  TEAMS --> AZ -->|"Bot JWT"| RA --> IN
+  CBR -->|"Cloud Agents API"| CUR
+  CUR -->|"Funnel /name/api + key"| RA
+  RA --> NAU & TOL & REP
+  CLI --> NAU & TOL & REP
+  CLI -.-> GRAPH` },
+        { title: "How a request runs", src: `sequenceDiagram
+  participant U as Teams user
+  participant T as Teams / Azure Bot
+  participant B as WenningNo.2 bot
+  participant P as Policy + ACL
+  participant C as Cursor API
+  participant W as Cursor workplace VM
+  participant F as Funnel (router a)
+  participant H as Tolas / reports / Nautilus
+
+  U->>T: chat message
+  T->>B: POST /api/messages (Bot JWT)
+  B->>P: classify + mutation ACL
+  alt reject secret or code change
+    P-->>U: refuse
+  else mutation needs confirm
+    P-->>U: Adaptive Card confirm
+  else cursor_workplace
+    B->>C: create or follow up an agent run
+    C->>W: agent + AGENTS.md + allowlist
+    W->>F: https /name/api + API key
+    F->>H: *.jellyc.internal
+    C-->>B: run FINISHED + result
+    B-->>U: proactive Teams reply
+  else local job or clock task
+    B->>H: JobManager clients over jellyc.internal
+    B-->>U: job result
+  end` },
+        { title: "Clock tasks (Australia/Perth)", src: `flowchart LR
+  CLK["bot clock inside wenningno2.service"] --> S1["ST-001 · 09:00 weekdays"]
+  CLK --> S7["ST-007 / 008 / 009 · 12:30 weekdays · noon recon"]
+  CLK --> S10["ST-010 · hourly · Star Beta NAV mail → BBP"]
+  CLK --> S11["ST-011 · 12:30 daily · BRT capital flow"]
+  CLK --> S12["ST-012 · hourly at :15 · AUD/USD hedge PDFs → static accounts"]
+  S7 & S10 & S11 & S12 --> NAU["Nautilus API"]
+  S10 & S12 --> G["Graph mail"]` },
+        { title: "Where the keys live", src: `flowchart LR
+  subgraph Host["jellyc-reports · WenningNo.2"]
+    ENV["teams-agent/.env<br/>Bot Framework · Cursor · product API keys · NAV · Graph"]
+    STATE["state/ · sessions · jobs · destinations"]
+  end
+  subgraph Workplace["Cursor named environment"]
+    SEC["environment secrets · product API keys"]
+    AG["AGENTS.md + allowlist.yaml<br/>frontend-equivalent actions only"]
+  end
+  ENV --> BOT["bot"]
+  STATE --- BOT
+  BOT -->|"CURSOR_API_KEY"| Workplace
+  SEC --> AG -->|"Funnel + key"| P["Tolas · reports · Nautilus"]
+  BOT -->|"local jobs · jellyc.internal"| P` },
+      ],
+      info: [
+        { title: "Host topology", src: `flowchart TB
+  U["Colleague browser · Tailscale"] --> ALB["internal ALB :5000"]
+  TB["Tolas trigger bots · Tokyo"] -->|"3 · MONITOR_API_KEY · reports.jellyc.internal:5000"| TM
+  W["WenningNo.2 · Funnel /market/api"] --> TM
+  subgraph S1["SERVER · jellyc-reports"]
+    subgraph SYS["SYSTEM · Trading Monitor :5000"]
+      TM["Flask app · login gate on jellyc_auth · Nautilus SSO"]
+      FAV["basis-monitor-data · favorites · borrow history"]
+      MOD["predictor models · XGBoost + N-BEATS"]
+      RET["nightly retrain 04:00 · host cron → docker exec"]
+      TM --- FAV
+      TM --- MOD
+      RET --> MOD
+    end
+  end
+  ALB --> TM
+  TM -->|"5 · SSO redeem"| NAU["Nautilus"]
+  subgraph CEFI["GROUP · CeFi"]
+    V["OKX · Binance · Bybit · Bitget · Gate · MEXC<br/>Hyperliquid · Lighter · Deribit · BitMEX · Aster"]
+  end
+  subgraph INFO["GROUP · Info"]
+    CGL["CoinGlass"]
+    TT["Token Terminal"]
+  end
+  subgraph NOT["GROUP · Notify"]
+    PA["Power Automate FLOW_URL"]
+  end
+  TM -.-> V
+  TM -.-> CGL & TT
+  TM -.-> PA` },
+        { title: "How a request is served", src: `sequenceDiagram
+  participant B as Browser on Tailscale
+  participant A as internal ALB :5000
+  participant T as Trading Monitor
+  participant N as Nautilus
+
+  B->>A: https :5000 (JellyC CA certificate)
+  A->>T: http :5000
+  alt no session
+    T-->>B: /login with password + TOTP, or a Nautilus SSO ticket
+    B->>T: /auth/sso/consume with the ticket
+    T->>N: redeem ticket + role (FLEET_SSO_SECRET)
+  end
+  T-->>B: dashboard
+  Note over T: machines send X-Api-Key from jellyc_auth api_keys.json` },
+      ],
+      reports: [
+        { title: "Host / process map", src: `flowchart TB
+  B["Analyst browser · Tailscale"] --> ALB["internal ALB :5001–5003 · :5006 · :5007 · :5008"]
+  subgraph S1["SERVER · jellyc-reports"]
+    subgraph SYS["SYSTEM · Daily Report"]
+      UNI["Unified :5006 · proxies /bmn/ /bbp/ /bdif/ /brt/ /pulse/ · /it-report"]
+      BDIF["BDIF :5001"]
+      BBP["BBP :5002"]
+      BMN["BMN :5003"]
+      BRT["BRT :5008"]
+      PUL["Pulse :5007"]
+      DB[("reports.db WAL")]
+      ENV["Auto_Report/*/env"]
+      AUTH["jellyc_auth/ · users + API keys"]
+      UNI --> BDIF & BBP & BMN & BRT & PUL
+      BDIF & BBP & BMN & BRT --- DB
+      PUL -->|"SQLite bind mount"| DB
+      ENV --- BDIF
+      AUTH --- UNI
+    end
+  end
+  ALB --> UNI
+  BDIF & BBP & BMN & BRT -->|"4 · noon book · nautilus.jellyc.internal"| NAU["Nautilus"]
+  PUL -->|"4 · BDIF node"| NAU
+  subgraph INFO["GROUP · Info"]
+    NAV["NAV Fund Services"]
+    CMC["CoinMarketCap"]
+    CG["CoinGecko"]
+  end
+  subgraph NOT["GROUP · Notify"]
+    SMTP["Office 365 SMTP"]
+    SP["SharePoint · Graph"]
+    GH["GitHub IT_Report/daily"]
+  end
+  subgraph CEFI["GROUP · CeFi"]
+    BIN["Binance marks"]
+  end
+  BDIF & BBP & BMN -.-> NAV
+  BDIF & BBP & BMN -.-> CMC
+  BDIF -.-> CG
+  BDIF & BBP & BMN & BRT -.-> SMTP
+  BBP -.-> SP
+  UNI -.-> GH
+  PUL -.-> BIN & NAV` },
+        { title: "Repository structure", src: `flowchart LR
+  subgraph Apps["Fund apps"]
+    BMN["BMN_Daily_Report/"]
+    BBP["BBP_Daily_Report/"]
+    BDIF["BDIF_Daily_Report/"]
+    BRT["BRT_Daily_Report/"]
+    BASIS["Basis_Bot_Daily_Report/"]
+  end
+  subgraph Front["Entry / Pulse / IT"]
+    UNI["Unified_Dashboard/"]
+    PUL["bdif-pulse-dashboard/"]
+    IT["IT_Report/daily/"]
+  end
+  subgraph Shared["Shared libraries"]
+    AUTH["Shared_Auth/"]
+    DB["common/db/"]
+    WEB["common/web/"]
+    PR["common/pricing/ · Nautilus + CMC"]
+    SDK["python_SDK/ · Haruko, unused"]
+  end
+  subgraph Ops["Ops"]
+    DEP["deploy/ · S3 artifact + SSM"]
+    DATA["data/ reports.db gitignored"]
+    TST["tests/"]
+  end
+  Apps --> Shared
+  Front --> Shared
+  DEP --> Apps` },
+        { title: "How a request runs", src: `flowchart TB
+  subgraph T1["Tailscale"]
+    U["Colleague · Microsoft login"]
+  end
+  subgraph T2["internal ALB"]
+    L[":5001–5003 · :5006 · :5007 · :5008"]
+  end
+  subgraph T3["Flask apps on jellyc-reports"]
+    LOGIN["/login password + TOTP<br/>or /auth/sso/consume from Nautilus"]
+    GATE["before_request require_login<br/>or X-Api-Key for machines"]
+    API["generate · email · capital_flow · latest"]
+  end
+  subgraph T4["Outbound"]
+    NAU["Nautilus API · DUMPLING_API_KEY"]
+    NAV["NAV Fund Services · HMAC"]
+    SMTP["Office 365 SMTP"]
+    CMC["CoinMarketCap"]
+    SP["SharePoint Graph · BBP"]
+  end
+  subgraph T5["Data"]
+    SQLITE[("reports.db WAL")]
+    FILES["reports/*.txt"]
+  end
+  U --> L --> LOGIN --> GATE --> API
+  API --> NAU & NAV & SMTP & CMC & SP
+  API --> SQLITE & FILES` },
+        { title: "Where keys and data are held", src: `flowchart TB
+  subgraph Keys["Keys · host only"]
+    ENVF["Auto_Report/*/env<br/>Nautilus · NAV · email · Azure"]
+    AUTHST["jellyc_auth/<br/>users.json · api_keys.json · secret_key"]
+  end
+  subgraph Persist["Persistence"]
+    DB[("Auto_Report_data/reports.db")]
+    RPT["reports/*.txt"]
+    PULSEDB[("Pulse state")]
+    ITD["IT report tables · it-reports/"]
+  end
+  ENVF -->|"read-only mount"| CTR["fund containers"]
+  AUTHST -->|"mount /app/state"| CTR
+  DB -->|"rw /data"| CTR
+  RPT --> CTR
+  AUTHST --> OTH["Unified · Pulse · Trading Monitor · Hub"]
+  ITD --> OTH` },
+      ],
+      monitor: [
+        { title: "Structure", src: `flowchart TB
+  Browser["Operator · Tailscale → ALB :5005"]
+  subgraph S1["SERVER · jellyc-reports"]
+    subgraph SYS["SYSTEM · Monitor Hub :5005"]
+      HUB["Flask Hub · login + Nautilus SSO · API key"]
+      DCLI["shared dumpling_client"]
+      M11["BMN delta · node 11"]
+      M151["BBP exposure · node 151"]
+      MB["basis_bot · basis account"]
+      MMAR["margin_risk · risk nodes"]
+      MCL["BMN credit line"]
+      MLIT["LIT price"]
+      MPOLY["Polymarket"]
+      MTVL["HL TVL"]
+      M10X["10x Pulse"]
+      MDB["DeBank units"]
+      HUB --> M11 & M151 & MB & MMAR & MCL
+      HUB --> MLIT & MPOLY & MTVL & M10X & MDB
+      M11 & M151 & MB & MMAR & MCL --> DCLI
+    end
+  end
+  DCLI -->|"2 · nautilus.jellyc.internal"| NAU["Nautilus"]
+  HUB -->|"5 · SSO redeem"| NAU
+  subgraph CEFI["GROUP · CeFi"]
+    OKX["OKX ticker"]
+  end
+  subgraph INFO["GROUP · Info"]
+    GAM["Polymarket Gamma"]
+    LL["DeFiLlama"]
+    TT["Token Terminal"]
+    NB["nearblocks"]
+    DBK["DeBank"]
+    CMC["CoinMarketCap"]
+  end
+  subgraph NOT["GROUP · Notify"]
+    PA["Power Automate"]
+    PD["PagerDuty"]
+    TEAMS["Teams"]
+  end
+  Browser --> HUB
+  MLIT -.-> OKX
+  MPOLY -.-> GAM
+  MTVL -.-> LL
+  M10X -.-> LL & TT & NB
+  MDB -.-> DBK & CMC
+  HUB -.->|"children post to FLOW_URL"| PA --> TEAMS
+  M11 & M151 & MB & MMAR & MCL & MLIT & MDB -.-> PD` },
+        { title: "Runtime sequence", src: `sequenceDiagram
+  participant Op as Operator
+  participant Hub as Flask Hub
+  participant PM as process_manager
+  participant Mon as Monitor child
+  participant API as External API or Nautilus
+  participant Alert as Teams or PagerDuty
+
+  Op->>Hub: login (password + TOTP, SSO ticket, or API key)
+  Op->>Hub: POST start monitor
+  Hub->>PM: start id
+  PM->>Mon: Popen python script
+  loop poll interval
+    Mon->>API: fetch
+    API-->>Mon: JSON
+    alt breach confirmed
+      Mon->>Alert: notify
+    end
+  end
+  Op->>Hub: POST config writes env` },
+        { title: "How alerts leave", src: `flowchart LR
+  M["child monitor"] -->|"breach confirmed"| A{"channel"}
+  A -->|"FLOW_URL"| PA["Power Automate"] --> T["Teams channel"]
+  A -->|"routing key"| PD["PagerDuty Events API"]
+  A -->|"basis_bot · optional"| TW["Twilio call"]
+  NAT["Sydney NAT egress"] -.- PA
+  NAT -.- PD
+  NAT -.- TW` },
+      ],
+      nautilus: [
+        { title: "System landscape", src: `flowchart TB
+  OP["Colleagues · Tailscale → ALB :443"]
+  IOS["Nautilus iOS · TestFlight"]
+  API["Machine callers · dmp_ API key<br/>WenningNo.2 · Hub · reports · Pulse · Fund Ops"]
+  subgraph S1["SERVER · jellyc-nautilus"]
+    subgraph SYS["SYSTEM · Nautilus (dumpling PMS)"]
+      EDGE["nginx :5000 TLS (JellyC CA) · :5080 HTTP"]
+      BE["backend ×2 · FastAPI · SSO IdP"]
+      SCH["scheduler"]
+      STR["streamer"]
+      PG[("Postgres 16")]
+      SEC["secrets/ · venue keys · jellyc_auth"]
+      CC["chain_connector + venues/"]
+      EDGE --> BE --> PG
+      SCH --> PG
+      STR --> PG
+      SEC --- SCH & STR & BE
+      CC --- SCH
+    end
+  end
+  OP --> EDGE
+  IOS --> EDGE
+  API --> EDGE
+  subgraph CEFI["GROUP · CeFi"]
+    VEN["OKX · Binance · Deribit · Kraken · Gate · MEXC<br/>Coinbase Prime · Coinbase Exchange · Hyperliquid · Lighter"]
+    FB["Fireblocks"]
+  end
+  subgraph INFO["GROUP · Info"]
+    DBK["DeBank"]
+    RPC["Public RPCs"]
+    CG["CoinGecko"]
+    CMC["CoinMarketCap"]
+  end
+  subgraph HOP["SYSTEM hops"]
+    TOL["Tolas"]
+  end
+  SCH -.-> VEN
+  STR -.-> VEN
+  SCH -.-> DBK & RPC & CG & CMC
+  SCH -.-> FB
+  BE -->|"7 · ops/sync_jellyc_auth.sh"| TOL
+  TOL -->|"5 · redeem + role"| BE` },
+        { title: "How a request is served", src: `flowchart LR
+    subgraph UI["frontend — React + Ant Design + AG Grid"]
+        LOGIN[Login<br/>email + password + TOTP]
+        DASH[Funds dashboard]
+        SUM[Summary<br/>equity delta positions margin]
+        RISK[Risk Pivot]
+        PNL[P&L Report]
+        ACT[Trades and Transfers<br/>on-chain txs · adjustments]
+        ADD[Add account / add transfer]
+        CSV[CSV export]
+    end
+
+    subgraph Nginx["frontend container"]
+        NGX["nginx<br/>host :5000 TLS · :5080"]
+    end
+
+    subgraph API["backend — FastAPI /api"]
+        AUTH[auth.py<br/>login logout me · SSO]
+        NODES["nodes.py<br/>nodes summary risk pnl<br/>trades transfers txs captures"]
+        EXP[export.py<br/>history CSVs]
+        BOOK[book_admin.py<br/>accounts transfers]
+        MW[auth middleware<br/>session cookie or API key<br/>RBAC + node_closure]
+    end
+
+    subgraph Core["backend services — derived, not stored"]
+        HIER[hierarchy + closure]
+        AGG[aggregation / valuation]
+        RP[riskpnl + attribution]
+        FLOW[flows / movements]
+        QUAL[data quality]
+        PRICE[pricing waterfall]
+        BA[book_admin writes]
+    end
+
+    LOGIN --> NGX
+    DASH & SUM & RISK & PNL & ACT & ADD & CSV --> NGX
+    NGX --> AUTH & NODES & EXP & BOOK
+    AUTH & NODES & EXP & BOOK --> MW
+    MW --> HIER & AGG & RP & FLOW & QUAL & PRICE & BA` },
+        { title: "How the book is filled", src: `flowchart TB
+    subgraph Scheduler["scheduler — python -m app.scheduler"]
+        H[Hourly capture :02<br/>importers.refresh]
+        C[Live CeFi ~60s<br/>venue balances + prices]
+        D[Live DeFi hourly<br/>wallets / DeBank / RPCs]
+        R[Repricing every minute<br/>wallet + static valued at live books]
+        P[Daily price book 03:00 UTC+8<br/>unquoted assets]
+        S[Static + accrual<br/>effective-dated entries]
+    end
+
+    subgraph Streamer["streamer — python -m app.streamer"]
+        WS["One WS thread per account<br/>OKX Binance Deribit Kraken Gate Hyperliquid"]
+        WR[Single writer thread<br/>batched commits ~1s]
+        POLL["HTTP poll fallback ~60s<br/>MEXC Coinbase Lighter<br/>+ any dead socket"]
+        RS[Resync on connect<br/>gap around disconnects]
+    end
+
+    subgraph Manual["Manual / repair — docker compose exec"]
+        VA[importers.venue_activity<br/>venue history backfill]
+        CA[importers.chain_activity<br/>DeBank history]
+        FA[importers.fireblocks_activity]
+        ST[statics / wallets / prices]
+        FIX["repair / classify / validate / prune"]
+    end
+
+    subgraph Adapters["Adapters on RO mounts"]
+        VEN["validation/venues/<br/>10 HTTP adapters"]
+        STM["validation/venues/streams/<br/>6 WS feeds"]
+        CH["chain_connector/<br/>DeBank + non-EVM RPCs + Fireblocks"]
+    end
+
+    C --> VEN
+    H --> VEN
+    H --> CH
+    D --> CH
+    WS --> STM
+    POLL --> VEN
+    RS --> VEN
+    VA --> VEN
+    CA --> CH
+    FA --> CH
+    STM --> WR
+    POLL --> WR` },
+        { title: "What Postgres holds", src: `erDiagram
+    NODE ||--o{ ACCOUNT_DETAIL : "account layer"
+    NODE ||--o{ NODE_CLOSURE : "ancestor path"
+    NODE ||--o{ CAPTURE : "hourly / live"
+    CAPTURE ||--o{ BALANCE_ROW : has
+    CAPTURE ||--o{ POSITION_ROW : has
+    CAPTURE ||--o{ MARGIN_ROW : has
+    NODE ||--o{ TRADE : "fills"
+    NODE ||--o{ CAPITAL_FLOW : "transfers"
+    NODE ||--o{ BALANCE_ADJUSTMENT : "manual / accrual"
+    NODE ||--o{ CHAIN_TRANSACTION : "on-chain legs"
+    NODE ||--o{ STATIC_BALANCE_ENTRY : "effective-dated"
+    STATIC_BALANCE_ENTRY ||--o{ STATIC_ACCRUAL : rules
+    NODE ||--o{ EQUITY_POINT : derived
+    APP_USER ||--o{ USER_SESSION : sessions
+    APP_USER ||--o{ API_KEY : "hashed dmp_"
+    APP_USER ||--o{ USER_NODE_ACCESS : grants
+    APP_USER ||--o{ AUDIT_EVENT : audit
+
+    NODE {
+        int id
+        string name
+        string external_ref
+    }
+    CAPTURE {
+        timestamptz capture_ts
+        bool is_live
+    }
+    TRADE {
+        string trade_key UK
+        string source_type
+    }
+    CAPITAL_FLOW {
+        string external_id
+        string classification
+    }` },
+        { title: "Identity and fleet SSO", src: `flowchart TB
+  subgraph TYO["Tokyo · jellyc-tolas"]
+    U[("Tolas state/users.json<br/>bcrypt + TOTP · source of truth")]
+  end
+  subgraph SYD["Sydney · jellyc-nautilus"]
+    JA["secrets/jellyc_auth · read-only mount"]
+    BE["backend · login · app_user roles"]
+    SSO["fleet SSO IdP · one-time tickets"]
+  end
+  U -->|"ops/sync_jellyc_auth.sh · SSH across the peering"| JA --> BE
+  BE --> SSO
+  SSO -->|"ticket in a 302"| APPS["Tolas · Hub · Unified · Trading Monitor<br/>BDIF · BBP · BMN · BRT"]
+  APPS -->|"redeem + role · FLEET_SSO_SECRET"| SSO
+  JA -->|"copied"| FO["Fund Ops jellyc_auth · read-only"]
+  U -->|"copied"| TAP["TAP console users.json"]
+  BE -->|"dmp_ API keys"| KEYS["WenningNo.2 · Hub · reports · Pulse · Fund Ops"]` },
+      ],
+      fundops: [
+        { title: "Host topology", src: `flowchart TB
+  U["Colleagues · Tailscale"] --> ALB["internal ALB :5010 production · :5011 staging"]
+  SSHU["Colleague SSH over Tailscale · :22 · this host only"]
+  subgraph S1["SERVER · jellyc-recon"]
+    subgraph SYS["SYSTEM · Fund Ops (recon-bot)"]
+      APP["app :5010 → :8000 · production"]
+      STG["app-staging :5011 → :8000"]
+      DB[("Postgres 18 · fund_recon · fund_recon_staging")]
+      AUTH["jellyc_auth · read-only · users.json copied from Nautilus"]
+      APP --- DB
+      STG --- DB
+      AUTH --- APP
+      AUTH --- STG
+    end
+  end
+  ALB --> APP & STG
+  SSHU --> S1
+  APP -->|"6 · ALB :443 /api · dmp_ key"| NAU["Nautilus"]
+  APP -.->|"HMAC API"| NAV["NAV Consulting API"]
+  OLD["previous Fund Ops host · still up until the operator retires it"]` },
+        { title: "What a recon run does", src: `flowchart LR
+  ZIP["NAV pack zip · per fund and date"] --> PARSE["nav_parser"]
+  NAUTI["Nautilus /summary · /pnl · /trades · /transfers"] --> SNAP["nauti_snapshot"]
+  PARSE --> ENG["recon engine<br/>positions · P&L · expenses · investor capital · feeder"]
+  SNAP --> ENG
+  MAP["Account Mapping · operator-maintained"] --> ENG
+  NAVAPI["NAV API · daily and MTD expenses · investor P&L"] --> ENG
+  ENG --> HUB["Fund Recon hub · four tabs · sign-off · daily log"]` },
+      ],
+      tolas: [
+        { title: "Host topology", src: `flowchart TB
+  UI["Traders · Tailscale → ALB :5004"]
+  ARB["arb-lab · tag:arb-server"]
+  W2["WenningNo.2 · Funnel /tolas/api · /api/v1 + key"]
+  subgraph S1["SERVER · jellyc-tolas"]
+    subgraph SYS["SYSTEM · Tolas :5004"]
+      FL["tolas_app.py · Flask · tolas.service"]
+      BOTS["funding · basis · rolling · iceberg · xex bots"]
+      BT["trigger bots"]
+      BO["Basic orders · manual tickets"]
+      J["basic-fill-journal.service · read-only"]
+      ACC["state/accounts.json"]
+      FILL["fills CSV + fills.db"]
+      USR["users.json + TOTP"]
+      TS["tailscaled · tag:tolas · 10.30.10.213/32"]
+      FL --> BOTS & BT & BO
+      J -.->|"reads tolas.log + venue GETs"| BO
+      ACC --- FL
+      FILL --- FL
+      USR --- FL
+    end
+  end
+  UI --> FL
+  ARB --> TS --> FL
+  W2 --> FL
+  subgraph CEFI["GROUP · CeFi"]
+    CEX["OKX · Lighter · MEXC · Hyperliquid · Binance USDT-M"]
+  end
+  subgraph HOP["SYSTEM hops"]
+    TM["Trading Monitor"]
+    NAU["Nautilus"]
+  end
+  BOTS -.-> CEX
+  BO -.-> CEX
+  BT -->|"3 · MONITOR_API_KEY"| TM
+  FL -->|"5 · SSO redeem + role"| NAU
+  NAU -->|"7 · SSH users.json"| USR` },
+        { title: "Process & data flow", src: `sequenceDiagram
+  participant Op as Operator
+  participant T as Tolas Flask :5004
+  participant Reg as accounts.json
+  participant Bot as Bot process
+  participant Ex as Exchange APIs
+  participant CSV as bot_dir/*_log_*.csv
+  participant SQL as state/fills.db
+
+  Op->>T: login (password + TOTP, or Nautilus SSO)
+  Op->>T: set params / start bot
+  T->>Reg: resolve LEG_*_ACCOUNT (+ fund tag check)
+  T->>Bot: spawn with injected venue env
+  Bot->>Ex: WS/REST orders and hedges
+  Bot->>CSV: append-only fills (hot-path SoT)
+  Note over Bot,CSV: No SQL write on the trading path
+  T->>CSV: read for live UI / history
+  T->>SQL: async ingest (fingerprint size:mtime_ns)
+  T->>Ex: signed reads (fills, candles, verify)` },
+        { title: "Authentication surfaces", src: `flowchart LR
+  subgraph Open["No login"]
+    L["/login /logout"]
+    H["/healthz · ALB probe"]
+    S["/static/*"]
+  end
+  subgraph Key["API key · X-Api-Key or Bearer"]
+    V1["/api/v1/* · state/api_keys.json<br/>a key is required"]
+  end
+  subgraph Session["Session · TOTP or SSO"]
+    UIX["/ UI · /api/* · /accounts"]
+  end
+  NET["Reached only via ALB :5004 on Tailscale<br/>Funnel /tolas/api · arb-lab direct"] --> Open & Key & Session
+  Session --> AUD["audit log · logins and bot changes"]` },
+      ],
+      tap: [
+        { title: "Host topology", src: `flowchart TB
+  U["Traders · Tailscale"] --> ALB["internal ALB :5009"]
+  subgraph TYO["Tokyo · private-trading"]
+    subgraph S1["SERVER · jellyc-tap"]
+      subgraph SYS["SYSTEM · TAP console (signet)"]
+        NGX["nginx :80"]
+        APP["tap-console · Next.js :43147<br/>JellyC login · users.json from Tolas"]
+        DESK["Fireblocks desk · Hyperliquid ↔ Lighter rails"]
+        AM["tap-auto-margin.timer · moves funds"]
+        ENV[".env.local · Fireblocks API key"]
+        NGX --> APP --> DESK
+        AM --> DESK
+        ENV --- DESK
+      end
+    end
+  end
+  ALB -->|"IP target across the peering"| NGX
+  subgraph USE["us-east-1 · default VPC"]
+    subgraph S2["SERVER · co-signer · c5.xlarge"]
+      COS["cosigner · Nitro enclave<br/>auto-signs what the TAP policy allows"]
+      SHARD["encrypted shard DB · S3 + KMS"]
+      COS --- SHARD
+    end
+  end
+  FB["Fireblocks API · SaaS"]
+  DESK -.->|"transfers · contract calls"| FB
+  COS -.->|"outbound only"| FB
+  DESK -.-> HL["Hyperliquid"]
+  DESK -.-> LTR["Lighter"]
+  DESK -.-> ARB["Arbitrum RPC"]
+  APP -.-> PA["Power Automate · Teams alert per transfer"]` },
+        { title: "How a venue transfer runs", src: `sequenceDiagram
+  participant T as Trader on Tailscale
+  participant C as TAP console
+  participant F as Fireblocks
+  participant P as Fireblocks TAP policy
+  participant S as Co-signer (us-east-1)
+  participant V as Hyperliquid / Lighter
+
+  T->>C: route HL to Lighter (amount)
+  C->>F: create transaction (API key + JWT)
+  F->>P: ALLOW, BLOCK or 2-TIER
+  alt ALLOW
+    S->>F: co-signer picks up the request (outbound only)
+    S-->>F: MPC signature
+    F->>V: on-chain transfer or bridge
+  else BLOCK
+    F-->>C: rejected
+  end
+  C->>C: record in transfer history
+  C-->>T: status + Teams alert` },
+      ],
+    };
     const drawn = {};
     function showTab(id) {
       document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.dataset.panel !== id; });
