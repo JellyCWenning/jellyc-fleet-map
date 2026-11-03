@@ -62,7 +62,7 @@
     <p class="lead">Level 1 SERVER. Level 2 SYSTEM (or GROUP for externals). Level 3 is a process inside a system, or a named provider inside a group. Dashed frames are the VPCs: no app host has a public IP. Checked against AWS, the tailnet and the code on 3 Nov 2026.</p>
     <div class="note">
       <strong>Solid vs dashed</strong>
-      Solid accent arrows are SYSTEM → SYSTEM hops, each with its own API key or ticket, over private DNS or the internal ALB: 1 WenningNo.2 as user · 2 Monitor Hub → Nautilus book · 3 Tolas trigger bots → Trading Monitor, across the peering · 4 Daily Report and Pulse → Nautilus noon book · 5 fleet SSO, Tolas redeems its ticket at Nautilus (Hub, Unified, Trading Monitor and Fund Ops do the same) · 6 Fund Ops → Nautilus through the ALB · 7 Nautilus pulls the Tolas users.json over SSH. Dashed arrows are a process calling a concrete provider; their color matches the caller. Dashed arrows from the Entry band are entry paths. There is no Nautilus → Tolas API call: Nautilus attributes Tolas trades to a strategy from the Tolas tag that each venue fill carries.
+      Solid accent arrows are SYSTEM → SYSTEM hops, each with its own API key or ticket, over private DNS or the internal ALB: 1 WenningNo.2 as user · 2 Monitor Hub → Nautilus book · 3 Tolas trigger bots → Trading Monitor, across the peering · 4 Daily Report and Pulse → Nautilus noon book · 5 fleet SSO, Tolas redeems its ticket at Nautilus (Hub, Unified, Trading Monitor and Fund Ops do the same) · 6 Fund Ops → Nautilus through the ALB · 7 Nautilus pulls the Tolas users.json over SSH. Dashed arrows are a process calling a concrete provider; their color matches the caller. Dashed arrows in the Network / entry color are the way in: a Tailscale client reaches router a or b (an HA pair, one carries the traffic at a time), the router hands it to the internal ALB, and the ALB sends each port to its system, across the peering for Tolas and TAP. The Funnel on router a also sends /wenning straight to the WenningNo.2 bot. Admins and Grok Bots come in through the SSM endpoints. Every call to an outside provider leaves through its VPC's NAT gateway, the band at the bottom of each frame. Route 53 only answers names, so it has no arrows. There is no Nautilus → Tolas API call: Nautilus attributes Tolas trades to a strategy from the Tolas tag that each venue fill carries.
     </div>
     <div class="pills" id="pills"></div>
     <div class="map" id="map"></div>
@@ -187,11 +187,12 @@
     function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
     function pick(id) { focus = focus === id ? "all" : id; render(); }
 
-    function vpc(x,y,w,h,title,sub,nodes) {
+    function vpc(x,y,w,h,title,sub,nodes,tx) {
+      tx = tx || x + 10;
       return `<g opacity="${op(nodes,0.5)}">
         <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="none" stroke="${HUE.network}" stroke-opacity="0.6" stroke-dasharray="5 4"/>
-        <text x="${x+10}" y="${y+16}" fill="${HUE.network}" font-size="9" font-weight="600">VPC</text>
-        <text x="${x+36}" y="${y+16}" fill="${T.text}" font-size="11" font-weight="600">${esc(title)}</text>
+        <text x="${tx}" y="${y+16}" fill="${HUE.network}" font-size="9" font-weight="600">VPC</text>
+        <text x="${tx+26}" y="${y+16}" fill="${T.text}" font-size="11" font-weight="600">${esc(title)}</text>
         ${sub ? `<text x="${x+w-10}" y="${y+16}" fill="${T.muted}" font-size="9" text-anchor="end">${esc(sub)}</text>` : ""}
       </g>`;
     }
@@ -252,221 +253,236 @@
         `<marker id="arr-${id}" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.3 L5,2.5 L0,4.7 Z" fill="${HUE[id]}"/></marker>`
       ).join("");
       const SYD = ["network","wenning2","info","reports","monitor","nautilus","fundops"];
-      return `<svg viewBox="0 0 1340 944" width="100%" role="img" aria-label="Three-level JellyC fleet">
+      return `<svg viewBox="0 0 1340 1008" width="100%" role="img" aria-label="Three-level JellyC fleet">
         <defs>
           <marker id="arrS" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.4 L6,3 L0,5.6 Z" fill="${T.accent}"/></marker>
           <marker id="arrL" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0.3 L5,2.5 L0,4.7 Z" fill="${T.stroke}"/></marker>
           ${markers}
         </defs>
         ${group(6,6,1328,62,"Entry · who reaches the fleet, and how",["network"],"network")}
-        ${leaf(14,28,212,32,"Admins","SSM Session Manager · no SSH from internet",["network"])}
-        ${leaf(232,28,212,32,"Colleagues on Tailscale","Microsoft login · laptops · phones · VDI",["network"])}
+        ${leaf(14,28,212,32,"Colleagues on Tailscale","Microsoft login · laptops · phones · VDI",["network"])}
+        ${leaf(232,28,212,32,"Nautilus iOS app","TestFlight · on Tailscale · ALB /api",["network","nautilus"])}
         ${leaf(450,28,212,32,"Internet → Funnel","Teams /wenning · Cursor agent /name/api",["network","wenning2"])}
-        ${leaf(668,28,212,32,"Nautilus iOS app","TestFlight · on Tailscale · ALB /api",["network","nautilus"])}
+        ${leaf(668,28,212,32,"Admins","SSM Session Manager · no SSH from internet",["network"])}
         ${leaf(886,28,212,32,"Grok Bots · Super-Governor","AWS API + three fixed SSM documents",["network"])}
         ${leaf(1104,28,212,32,"arb-lab · Albert server","tag:arb-server · Tolas :5004 direct",["network","tolas"])}
 
-        ${vpc(6,76,968,606,"jellyc-syd · 10.20.0.0/16 · Sydney","public-edge: NAT · private-app: hosts, ALB, routers · private-data: empty",SYD)}
-        ${leaf(14,100,160,32,"NAT gateway","public-edge-a · Sydney egress EIP",["network"])}
-        ${leaf(180,100,220,32,"internal ALB  jellyc-ops-int",":443 · :5000–5011 · one port per system",["network"])}
-        ${leaf(406,100,148,32,"router a · Funnel","app-a · subnet router",["network"])}
-        ${leaf(586,100,150,32,"router b","app-b · subnet router",["network"])}
-        ${leaf(742,100,224,32,"Route 53  jellyc.internal","private zone · Sydney + Tokyo VPCs",["network"])}
+        ${vpc(6,76,968,670,"jellyc-syd · 10.20.0.0/16 · Sydney","",SYD,600)}
+        ${leaf(14,100,150,32,"router b","app-b · subnet router · HA pair",["network"])}
+        ${leaf(184,100,220,32,"internal ALB  jellyc-ops-int",":443 · :5000–5011 · one port per system",["network"])}
+        ${leaf(424,100,150,32,"router a · Funnel","app-a · subnet router · HA pair",["network","wenning2"])}
+        ${leaf(598,100,192,32,"Route 53  jellyc.internal","private zone · answers names, carries no traffic",["network"])}
+        ${leaf(810,100,156,32,"VPC endpoints","SSM ×3 · S3 gateway · also in Tokyo",["network"])}
 
-        ${server(14,140,540,534,"jellyc-reports · 10.20.10.253 · t3.large",["wenning2","info","reports","monitor"])}
-        ${system(22,164,524,90,"WenningNo.2  :3978",["wenning2"],"wenning2")}
-        ${leaf(30,184,122,28,"bot FastAPI","wenningno2.service",["wenning2"])}
-        ${leaf(158,184,122,28,"policy + ACL","allowlist · 5 operators",["wenning2"])}
-        ${leaf(286,184,122,28,"cursor_bridge","Cloud Agents API",["wenning2"])}
-        ${leaf(414,184,124,28,"inbound :3978","Funnel /wenning · router a",["wenning2"])}
-        ${leaf(30,218,192,28,"JobManager + clock","ST-001…ST-012 · Perth time",["wenning2"])}
-        ${leaf(228,218,310,28,"clients/","Nautilus · Tolas · reports · NAV · Graph mail",["wenning2"])}
-        ${system(22,260,524,72,"Trading Monitor  :5000  ·  login + Nautilus SSO",["info"],"info")}
-        ${leaf(30,280,168,42,"okx-basis-monitor","Flask · 11 venues · API key",["info"])}
-        ${leaf(204,280,168,42,"favorites + data","basis-monitor-data/",["info"])}
-        ${leaf(378,280,160,42,"predictor models","nightly retrain 04:00",["info"])}
-        ${system(22,338,524,102,"Daily Report  :5001–5003 · :5008  +  Unified · Pulse",["reports"],"reports")}
-        ${leaf(30,358,79,32,"BDIF :5001","gunicorn",["reports"])}
-        ${leaf(115,358,79,32,"BBP :5002","SharePoint",["reports"])}
-        ${leaf(200,358,79,32,"BMN :5003","NAV / noon",["reports"])}
-        ${leaf(285,358,79,32,"BRT :5008","Bluering",["reports"])}
-        ${leaf(370,358,79,32,"Unified :5006","front door",["reports"])}
-        ${leaf(455,358,83,32,"Pulse :5007","allocation",["reports"])}
-        ${leaf(30,396,168,36,"reports.db WAL","snapshots · capital flows",["reports"])}
-        ${leaf(204,396,168,36,"Auto_Report/*/env","keys stay on the host",["reports"])}
-        ${leaf(378,396,160,36,"IT report","Unified /it-report · 09:00 SGT",["reports"])}
-        ${system(22,446,524,184,"Monitor Hub  :5005  ·  10 child monitors",["monitor"],"monitor")}
-        ${leaf(30,466,168,30,"Flask Hub","login + SSO · API key",["monitor"])}
-        ${leaf(204,466,168,30,"per-monitor .env","FLOW_URL · PagerDuty key",["monitor"])}
-        ${leaf(378,466,160,30,"dumpling_client","Nautilus summary / risk",["monitor"])}
-        ${leaf(30,502,122,34,"BMN delta","node 11",["monitor"])}
-        ${leaf(158,502,122,34,"BBP exposure","node 151",["monitor"])}
-        ${leaf(286,502,122,34,"basis_bot","basis account",["monitor"])}
-        ${leaf(414,502,124,34,"margin_risk","risk nodes",["monitor"])}
-        ${leaf(30,542,122,34,"BMN credit line","Nautilus + PagerDuty",["monitor"])}
-        ${leaf(158,542,122,34,"LIT price","OKX ticker",["monitor"])}
-        ${leaf(286,542,122,34,"Polymarket","Gamma API",["monitor"])}
-        ${leaf(414,542,124,34,"HL TVL","DeFiLlama",["monitor"])}
-        ${leaf(30,582,122,38,"10x Pulse","Llama · TT · nearblocks",["monitor"])}
-        ${leaf(158,582,122,38,"DeBank units","DeBank + CMC",["monitor"])}
-        ${leaf(286,582,252,38,"jellyc_auth/","users.json + API keys · reports · TM · Pulse · Hub",["monitor","reports","info"])}
-        ${leaf(22,638,524,28,"host","Amazon Linux 2023 · Docker · SSM · daily backup, 7 days, copied to Tokyo",["wenning2","info","reports","monitor"])}
+        ${server(14,164,540,534,"jellyc-reports · 10.20.10.253 · t3.large",["wenning2","info","reports","monitor"])}
+        ${system(22,188,524,90,"WenningNo.2  :3978",["wenning2"],"wenning2")}
+        ${leaf(30,208,122,28,"bot FastAPI","wenningno2.service",["wenning2"])}
+        ${leaf(158,208,122,28,"policy + ACL","allowlist · 5 operators",["wenning2"])}
+        ${leaf(286,208,122,28,"cursor_bridge","Cloud Agents API",["wenning2"])}
+        ${leaf(414,208,124,28,"inbound :3978","Funnel /wenning · router a",["wenning2"])}
+        ${leaf(30,242,192,28,"JobManager + clock","ST-001…ST-012 · Perth time",["wenning2"])}
+        ${leaf(228,242,310,28,"clients/","Nautilus · Tolas · reports · NAV · Graph mail",["wenning2"])}
+        ${system(22,284,524,72,"Trading Monitor  :5000  ·  login + Nautilus SSO",["info"],"info")}
+        ${leaf(30,304,168,42,"okx-basis-monitor","Flask · 11 venues · API key",["info"])}
+        ${leaf(204,304,168,42,"favorites + data","basis-monitor-data/",["info"])}
+        ${leaf(378,304,160,42,"predictor models","nightly retrain 04:00",["info"])}
+        ${system(22,362,524,102,"Daily Report  :5001–5003 · :5008  +  Unified · Pulse",["reports"],"reports")}
+        ${leaf(30,382,79,32,"BDIF :5001","gunicorn",["reports"])}
+        ${leaf(115,382,79,32,"BBP :5002","SharePoint",["reports"])}
+        ${leaf(200,382,79,32,"BMN :5003","NAV / noon",["reports"])}
+        ${leaf(285,382,79,32,"BRT :5008","Bluering",["reports"])}
+        ${leaf(370,382,79,32,"Unified :5006","front door",["reports"])}
+        ${leaf(455,382,83,32,"Pulse :5007","allocation",["reports"])}
+        ${leaf(30,420,168,36,"reports.db WAL","snapshots · capital flows",["reports"])}
+        ${leaf(204,420,168,36,"Auto_Report/*/env","keys stay on the host",["reports"])}
+        ${leaf(378,420,160,36,"IT report","Unified /it-report · 09:00 SGT",["reports"])}
+        ${system(22,470,524,184,"Monitor Hub  :5005  ·  10 child monitors",["monitor"],"monitor")}
+        ${leaf(30,490,168,30,"Flask Hub","login + SSO · API key",["monitor"])}
+        ${leaf(204,490,168,30,"per-monitor .env","FLOW_URL · PagerDuty key",["monitor"])}
+        ${leaf(378,490,160,30,"dumpling_client","Nautilus summary / risk",["monitor"])}
+        ${leaf(30,526,122,34,"BMN delta","node 11",["monitor"])}
+        ${leaf(158,526,122,34,"BBP exposure","node 151",["monitor"])}
+        ${leaf(286,526,122,34,"basis_bot","basis account",["monitor"])}
+        ${leaf(414,526,124,34,"margin_risk","risk nodes",["monitor"])}
+        ${leaf(30,566,122,34,"BMN credit line","Nautilus + PagerDuty",["monitor"])}
+        ${leaf(158,566,122,34,"LIT price","OKX ticker",["monitor"])}
+        ${leaf(286,566,122,34,"Polymarket","Gamma API",["monitor"])}
+        ${leaf(414,566,124,34,"HL TVL","DeFiLlama",["monitor"])}
+        ${leaf(30,606,122,38,"10x Pulse","Llama · TT · nearblocks",["monitor"])}
+        ${leaf(158,606,122,38,"DeBank units","DeBank + CMC",["monitor"])}
+        ${leaf(286,606,252,38,"jellyc_auth/","users.json + API keys · reports · TM · Pulse · Hub",["monitor","reports","info"])}
+        ${leaf(22,662,524,28,"host","Amazon Linux 2023 · Docker · SSM · daily backup, 7 days, copied to Tokyo",["wenning2","info","reports","monitor"])}
 
-        ${server(622,140,344,316,"jellyc-nautilus · 10.20.10.31 · c6i.xlarge",["nautilus"])}
-        ${system(630,164,328,246,"Nautilus  (dumpling PMS)",["nautilus"],"nautilus")}
-        ${leaf(638,184,312,28,"nginx :5000 TLS · :5080","JellyC CA cert · SPA + /api · ALB :443",["nautilus"])}
-        ${leaf(638,218,153,32,"backend ×2","FastAPI · fleet SSO IdP",["nautilus"])}
-        ${leaf(797,218,153,32,"scheduler","hourly capture · live CeFi/DeFi",["nautilus"])}
-        ${leaf(638,256,153,32,"streamer","6 WS + poll fills",["nautilus"])}
-        ${leaf(797,256,153,32,"Postgres 16","book · sleeves · dmp_ keys",["nautilus"])}
-        ${leaf(638,294,153,32,"venues/","10 HTTP + 6 WS adapters",["nautilus"])}
-        ${leaf(797,294,153,32,"chain_connector","DeBank · RPCs · Fireblocks",["nautilus"])}
-        ${leaf(638,332,153,32,"secrets/","venue keys · jellyc_auth",["nautilus"])}
-        ${leaf(797,332,153,32,"deploy_main.sh","windowed · image rollback",["nautilus"])}
-        ${leaf(638,370,312,32,"Fund nodes","BMN 11 · BBP 151 · BDIF 225 · BMSF 522 · BAIF 591 · BRT 624 · Albert 625",["nautilus"])}
-        ${leaf(630,418,328,28,"host","Amazon Linux 2023 · Docker Compose · SSM · daily backup",["nautilus"])}
+        ${server(622,164,344,316,"jellyc-nautilus · 10.20.10.31 · c6i.xlarge",["nautilus"])}
+        ${system(630,188,328,246,"Nautilus  (dumpling PMS)",["nautilus"],"nautilus")}
+        ${leaf(638,208,312,28,"nginx :5000 TLS · :5080","JellyC CA cert · SPA + /api · ALB :443",["nautilus"])}
+        ${leaf(638,242,153,32,"backend ×2","FastAPI · fleet SSO IdP",["nautilus"])}
+        ${leaf(797,242,153,32,"scheduler","hourly capture · live CeFi/DeFi",["nautilus"])}
+        ${leaf(638,280,153,32,"streamer","6 WS + poll fills",["nautilus"])}
+        ${leaf(797,280,153,32,"Postgres 16","book · sleeves · dmp_ keys",["nautilus"])}
+        ${leaf(638,318,153,32,"venues/","10 HTTP + 6 WS adapters",["nautilus"])}
+        ${leaf(797,318,153,32,"chain_connector","DeBank · RPCs · Fireblocks",["nautilus"])}
+        ${leaf(638,356,153,32,"secrets/","venue keys · jellyc_auth",["nautilus"])}
+        ${leaf(797,356,153,32,"deploy_main.sh","windowed · image rollback",["nautilus"])}
+        ${leaf(638,394,312,32,"Fund nodes","BMN 11 · BBP 151 · BDIF 225 · BMSF 522 · BAIF 591 · BRT 624 · Albert 625",["nautilus"])}
+        ${leaf(630,442,328,28,"host","Amazon Linux 2023 · Docker Compose · SSM · daily backup",["nautilus"])}
 
-        ${server(622,464,344,210,"jellyc-recon · 10.20.10.143 · t3.small",["fundops"])}
-        ${system(630,488,328,138,"Fund Ops  (recon-bot)  :5010 · :5011",["fundops"],"fundops")}
-        ${leaf(638,508,153,32,"app :5010","production · login + Nautilus SSO",["fundops"])}
-        ${leaf(797,508,153,32,"app-staging :5011","stage first, then promote",["fundops"])}
-        ${leaf(638,546,153,32,"Postgres 18","fund_recon · …_staging",["fundops"])}
-        ${leaf(797,546,153,32,"jellyc_auth (read-only)","users.json from Nautilus",["fundops"])}
-        ${leaf(638,584,312,32,"SSH :22 over Tailscale","company members · this host only · one key",["fundops"])}
-        ${leaf(630,638,328,28,"host","Amazon Linux 2023 · Docker Compose · SSM · daily backup",["fundops"])}
+        ${server(622,488,344,210,"jellyc-recon · 10.20.10.143 · t3.small",["fundops"])}
+        ${system(630,512,328,138,"Fund Ops  (recon-bot)  :5010 · :5011",["fundops"],"fundops")}
+        ${leaf(638,532,153,32,"app :5010","production · login + Nautilus SSO",["fundops"])}
+        ${leaf(797,532,153,32,"app-staging :5011","stage first, then promote",["fundops"])}
+        ${leaf(638,570,153,32,"Postgres 18","fund_recon · …_staging",["fundops"])}
+        ${leaf(797,570,153,32,"jellyc_auth (read-only)","users.json from Nautilus",["fundops"])}
+        ${leaf(638,608,312,32,"SSH :22 over Tailscale","company members · this host only · one key",["fundops"])}
+        ${leaf(630,662,328,28,"host","Amazon Linux 2023 · Docker Compose · SSM · daily backup",["fundops"])}
 
-        ${vpc(982,76,352,490,"jellyc-tyo · 10.30.0.0/16 · Tokyo","",["network","tolas","tap"])}
-        ${leaf(990,100,162,32,"NAT gateway","public-edge-a · Tokyo egress EIP",["network"])}
-        ${leaf(1158,100,156,32,"peering ↔ jellyc-syd","routes + DNS both ways",["network"])}
-        ${server(990,140,336,296,"jellyc-tolas · 10.30.10.213 · t3.large",["tolas"])}
-        ${system(998,164,320,234,"Tolas  :5004",["tolas"],"tolas")}
-        ${leaf(1006,184,304,26,"tolas_app.py  (Flask)","UI + /api · /api/v1 needs an API key",["tolas"])}
-        ${leaf(1006,214,149,26,"funding bots","BBP / BMN",["tolas"])}
-        ${leaf(1161,214,149,26,"basis bots","BBP / BMN",["tolas"])}
-        ${leaf(1006,244,149,26,"rolling bots","near → far",["tolas"])}
-        ${leaf(1161,244,149,26,"iceberg","BDIF · BBP · BMN",["tolas"])}
-        ${leaf(1006,274,149,26,"xex cross-exchange","OKX ↔ Lighter",["tolas"])}
-        ${leaf(1161,274,149,26,"trigger bots","read Trading Monitor",["tolas"])}
-        ${leaf(1006,304,149,26,"Basic orders","manual tickets",["tolas"])}
-        ${leaf(1161,304,149,26,"basic-fill-journal","read-only follower",["tolas"])}
-        ${leaf(1006,334,149,26,"accounts.json","OKX Lighter MEXC HL Binance",["tolas"])}
-        ${leaf(1161,334,149,26,"fills CSV + fills.db","CSV is hot-path SoT",["tolas"])}
-        ${leaf(1006,364,149,26,"users.json + TOTP","fleet login source",["tolas"])}
-        ${leaf(1161,364,149,26,"tailscaled","tag:tolas · UDP 41641",["tolas","network"])}
-        ${leaf(998,404,320,26,"host","Amazon Linux 2023 · systemd · SSM · daily backup",["tolas"])}
-        ${server(990,442,336,116,"jellyc-tap · 10.30.10.34 · t3.small",["tap"])}
-        ${system(998,466,320,56,"TAP console (signet)  ALB :5009 → :80",["tap"],"tap")}
-        ${leaf(1006,486,149,28,"nginx → Next.js","JellyC login · Teams alerts",["tap"])}
-        ${leaf(1161,486,149,28,"Fireblocks desk","HL ↔ Lighter · auto-margin",["tap"])}
-        ${leaf(998,526,320,26,"host","Amazon Linux 2023 · systemd · SSM · daily backup",["tap"])}
+        ${vpc(982,76,352,548,"jellyc-tyo · 10.30.0.0/16 · Tokyo","",["network","tolas","tap"])}
+        ${leaf(990,100,324,32,"peering ↔ jellyc-syd","ALB → Tolas :5004 and TAP :5009 · hops 1 3 5 7 · DNS both ways",["network"])}
+        ${server(990,164,336,296,"jellyc-tolas · 10.30.10.213 · t3.large",["tolas"])}
+        ${system(998,188,320,234,"Tolas  :5004",["tolas"],"tolas")}
+        ${leaf(1006,208,304,26,"tolas_app.py  (Flask)","UI + /api · /api/v1 needs an API key",["tolas"])}
+        ${leaf(1006,238,149,26,"funding bots","BBP / BMN",["tolas"])}
+        ${leaf(1161,238,149,26,"basis bots","BBP / BMN",["tolas"])}
+        ${leaf(1006,268,149,26,"rolling bots","near → far",["tolas"])}
+        ${leaf(1161,268,149,26,"iceberg","BDIF · BBP · BMN",["tolas"])}
+        ${leaf(1006,298,149,26,"xex cross-exchange","OKX ↔ Lighter",["tolas"])}
+        ${leaf(1161,298,149,26,"trigger bots","read Trading Monitor",["tolas"])}
+        ${leaf(1006,328,149,26,"Basic orders","manual tickets",["tolas"])}
+        ${leaf(1161,328,149,26,"basic-fill-journal","read-only follower",["tolas"])}
+        ${leaf(1006,358,149,26,"accounts.json","OKX Lighter MEXC HL Binance",["tolas"])}
+        ${leaf(1161,358,149,26,"fills CSV + fills.db","CSV is hot-path SoT",["tolas"])}
+        ${leaf(1006,388,149,26,"users.json + TOTP","fleet login source",["tolas"])}
+        ${leaf(1161,388,149,26,"tailscaled","tag:tolas · UDP 41641",["tolas","network"])}
+        ${leaf(998,428,320,26,"host","Amazon Linux 2023 · systemd · SSM · daily backup",["tolas"])}
+        ${server(990,466,336,116,"jellyc-tap · 10.30.10.34 · t3.small",["tap"])}
+        ${system(998,490,320,56,"TAP console (signet)  ALB :5009 → :80",["tap"],"tap")}
+        ${leaf(1006,510,149,28,"nginx → Next.js","JellyC login · Teams alerts",["tap"])}
+        ${leaf(1161,510,149,28,"Fireblocks desk","HL ↔ Lighter · auto-margin",["tap"])}
+        ${leaf(998,550,320,26,"host","Amazon Linux 2023 · systemd · SSM · daily backup",["tap"])}
 
-        ${vpc(982,574,352,108,"default VPC · us-east-1","not moved",["network","tap"])}
-        ${server(990,598,336,76,"fireblocks-nitro-cosigner · c5.xlarge",["tap"])}
-        ${system(998,622,320,46,"Fireblocks co-signer  (vendor)",["tap"],"tap")}
-        ${leaf(1006,640,149,24,"Nitro co-signer","auto-signs allowed transfers",["tap"])}
-        ${leaf(1161,640,149,24,"public IP · no inbound","S3 + KMS shard store",["tap"])}
+        ${vpc(982,632,352,108,"default VPC · us-east-1","not moved",["network","tap"])}
+        ${server(990,656,336,76,"fireblocks-nitro-cosigner · c5.xlarge",["tap"])}
+        ${system(998,680,320,46,"Fireblocks co-signer  (vendor)",["tap"],"tap")}
+        ${leaf(1006,698,149,24,"Nitro co-signer","auto-signs allowed transfers",["tap"])}
+        ${leaf(1161,698,149,24,"public IP · no inbound","S3 + KMS shard store",["tap"])}
 
-        ${group(6,716,628,220,"CeFi / custody venues",["exchanges"],"exchanges")}
-        ${leaf(14,738,148,34,"OKX","Nau · Tolas · TM · LIT",["exchanges"])}
-        ${leaf(168,738,148,34,"Binance","Nau · Tolas · TM · Pulse",["exchanges"])}
-        ${leaf(322,738,148,34,"Deribit","Nautilus · TM",["exchanges"])}
-        ${leaf(476,738,150,34,"Kraken","Nautilus HTTP + WS",["exchanges"])}
-        ${leaf(14,778,148,34,"Gate","Nautilus · TM",["exchanges"])}
-        ${leaf(168,778,148,34,"MEXC","Nau poll · Tolas · TM",["exchanges"])}
-        ${leaf(322,778,148,34,"Coinbase Prime","Nautilus custody",["exchanges"])}
-        ${leaf(476,778,150,34,"Coinbase Exchange","Nautilus poll",["exchanges"])}
-        ${leaf(14,818,148,34,"Hyperliquid","Nau · Tolas · TAP · TM",["exchanges"])}
-        ${leaf(168,818,148,34,"Lighter","Nau · Tolas · TAP · TM",["exchanges"])}
-        ${leaf(322,818,148,34,"Bybit","Trading Monitor",["exchanges"])}
-        ${leaf(476,818,150,34,"Bitget","Trading Monitor",["exchanges"])}
-        ${leaf(14,858,148,34,"BitMEX","Trading Monitor",["exchanges"])}
-        ${leaf(168,858,148,34,"Aster","Trading Monitor",["exchanges"])}
-        ${leaf(322,858,304,34,"Fireblocks","TAP desk + co-signer · Nautilus vault reads",["exchanges"])}
-        ${leaf(14,898,612,30,"Keys live on the calling host","Nautilus secrets/ · Tolas state/accounts.json · TAP .env.local · venue IP allowlists = the NAT EIPs",["exchanges"])}
-        ${group(642,716,368,220,"Info / data / chain / legacy",["infoplat"],"infoplat")}
-        ${leaf(650,738,176,32,"DeBank","Nautilus wallets · Hub units",["infoplat"])}
-        ${leaf(832,738,170,32,"Public RPCs","Nau chains · TAP Arbitrum",["infoplat"])}
-        ${leaf(650,776,176,32,"CoinGecko","Nautilus · BDIF marks",["infoplat"])}
-        ${leaf(832,776,170,32,"CoinMarketCap","Nau · reports · Hub",["infoplat"])}
-        ${leaf(650,814,176,32,"CoinGlass","Trading Monitor funding",["infoplat"])}
-        ${leaf(832,814,170,32,"Token Terminal","TM · 10x Pulse",["infoplat"])}
-        ${leaf(650,852,176,32,"DeFiLlama","HL TVL · 10x Pulse",["infoplat"])}
-        ${leaf(832,852,170,32,"Polymarket Gamma","Monitor Hub",["infoplat"])}
-        ${leaf(650,890,176,34,"NAV Fund Services","reports · Pulse · Fund Ops · W2",["infoplat"])}
-        ${leaf(832,890,170,34,"Haruko","decommissioned · code only",["infoplat"])}
-        ${group(1018,716,316,220,"Notify / SaaS control",["notify"],"notify")}
-        ${leaf(1026,738,146,34,"Power Automate","TM · Hub · TAP alerts",["notify"])}
-        ${leaf(1178,738,148,34,"Microsoft Teams","chat in · replies out",["notify"])}
-        ${leaf(1026,778,146,34,"PagerDuty","seven Hub monitors",["notify"])}
-        ${leaf(1178,778,148,34,"Azure Bot Service","Bot JWT · bot :3978",["notify"])}
-        ${leaf(1026,818,146,34,"Office 365 SMTP","reports · IT daily mail",["notify"])}
-        ${leaf(1178,818,148,34,"Cursor Cloud","WenningNo.2 workplace",["notify"])}
-        ${leaf(1026,858,146,34,"SharePoint / Graph","BBP upload · W2 mail",["notify"])}
-        ${leaf(1178,858,148,34,"Tailscale (SaaS)","tailnet · Funnel · DERP",["notify"])}
-        ${leaf(1026,898,146,30,"Twilio","basis_bot calls · optional",["notify"])}
-        ${leaf(1178,898,148,30,"GitHub","IT report pages · code",["notify"])}
+        ${group(6,780,628,220,"CeFi / custody venues",["exchanges"],"exchanges")}
+        ${leaf(14,802,148,34,"OKX","Nau · Tolas · TM · LIT",["exchanges"])}
+        ${leaf(168,802,148,34,"Binance","Nau · Tolas · TM · Pulse",["exchanges"])}
+        ${leaf(322,802,148,34,"Deribit","Nautilus · TM",["exchanges"])}
+        ${leaf(476,802,150,34,"Kraken","Nautilus HTTP + WS",["exchanges"])}
+        ${leaf(14,842,148,34,"Gate","Nautilus · TM",["exchanges"])}
+        ${leaf(168,842,148,34,"MEXC","Nau poll · Tolas · TM",["exchanges"])}
+        ${leaf(322,842,148,34,"Coinbase Prime","Nautilus custody",["exchanges"])}
+        ${leaf(476,842,150,34,"Coinbase Exchange","Nautilus poll",["exchanges"])}
+        ${leaf(14,882,148,34,"Hyperliquid","Nau · Tolas · TAP · TM",["exchanges"])}
+        ${leaf(168,882,148,34,"Lighter","Nau · Tolas · TAP · TM",["exchanges"])}
+        ${leaf(322,882,148,34,"Bybit","Trading Monitor",["exchanges"])}
+        ${leaf(476,882,150,34,"Bitget","Trading Monitor",["exchanges"])}
+        ${leaf(14,922,148,34,"BitMEX","Trading Monitor",["exchanges"])}
+        ${leaf(168,922,148,34,"Aster","Trading Monitor",["exchanges"])}
+        ${leaf(322,922,304,34,"Fireblocks","TAP desk + co-signer · Nautilus vault reads",["exchanges"])}
+        ${leaf(14,962,612,30,"Keys live on the calling host","Nautilus secrets/ · Tolas state/accounts.json · TAP .env.local · venue IP allowlists = the NAT EIPs",["exchanges"])}
+        ${group(642,780,368,220,"Info / data / chain / legacy",["infoplat"],"infoplat")}
+        ${leaf(650,802,176,32,"DeBank","Nautilus wallets · Hub units",["infoplat"])}
+        ${leaf(832,802,170,32,"Public RPCs","Nau chains · TAP Arbitrum",["infoplat"])}
+        ${leaf(650,840,176,32,"CoinGecko","Nautilus · BDIF marks",["infoplat"])}
+        ${leaf(832,840,170,32,"CoinMarketCap","Nau · reports · Hub",["infoplat"])}
+        ${leaf(650,878,176,32,"CoinGlass","Trading Monitor funding",["infoplat"])}
+        ${leaf(832,878,170,32,"Token Terminal","TM · 10x Pulse",["infoplat"])}
+        ${leaf(650,916,176,32,"DeFiLlama","HL TVL · 10x Pulse",["infoplat"])}
+        ${leaf(832,916,170,32,"Polymarket Gamma","Monitor Hub",["infoplat"])}
+        ${leaf(650,954,176,34,"NAV Fund Services","reports · Pulse · Fund Ops · W2",["infoplat"])}
+        ${leaf(832,954,170,34,"Haruko","decommissioned · code only",["infoplat"])}
+        ${group(1018,780,316,220,"Notify / SaaS control",["notify"],"notify")}
+        ${leaf(1026,802,146,34,"Power Automate","TM · Hub · TAP alerts",["notify"])}
+        ${leaf(1178,802,148,34,"Microsoft Teams","chat in · replies out",["notify"])}
+        ${leaf(1026,842,146,34,"PagerDuty","seven Hub monitors",["notify"])}
+        ${leaf(1178,842,148,34,"Azure Bot Service","Bot JWT · bot :3978",["notify"])}
+        ${leaf(1026,882,146,34,"Office 365 SMTP","reports · IT daily mail",["notify"])}
+        ${leaf(1178,882,148,34,"Cursor Cloud","WenningNo.2 workplace",["notify"])}
+        ${leaf(1026,922,146,34,"SharePoint / Graph","BBP upload · W2 mail",["notify"])}
+        ${leaf(1178,922,148,34,"Tailscale (SaaS)","tailnet · Funnel · DERP",["notify"])}
+        ${leaf(1026,962,146,30,"Twilio","basis_bot calls · optional",["notify"])}
+        ${leaf(1178,962,148,30,"GitHub","IT report pages · code",["notify"])}
 
-        ${edge([{x:380,y:60},{x:380,y:100}],["network"],"leaf","network")}
-        ${edge([{x:520,y:60},{x:520,y:100}],["network","wenning2"],"leaf","network")}
-        ${edge([{x:480,y:132},{x:480,y:184}],["network","wenning2"],"leaf","network")}
-        ${edge([{x:1322,y:60},{x:1322,y:377},{x:1310,y:377}],["network","tolas"],"leaf","network")}
+        ${edge([{x:110,y:60},{x:110,y:100}],["network","info","reports","monitor","nautilus","fundops","tolas","tap"],"leaf","network")}
+        ${edge([{x:110,y:60},{x:110,y:84},{x:470,y:84},{x:470,y:100}],["network","info","reports","monitor","nautilus","fundops","tolas","tap"],"leaf","network")}
+        ${edge([{x:338,y:60},{x:338,y:84},{x:110,y:84},{x:110,y:100}],["network","nautilus"],"leaf","network")}
+        ${edge([{x:338,y:60},{x:338,y:84},{x:470,y:84},{x:470,y:100}],["network","nautilus"],"leaf","network")}
+        ${edge([{x:520,y:60},{x:520,y:100}],["network","wenning2","info","reports","monitor","nautilus","tolas"],"leaf","network")}
+        ${edge([{x:845,y:60},{x:845,y:100}],["network"],"leaf","network")}
+        ${edge([{x:930,y:60},{x:930,y:100}],["network"],"leaf","network")}
+        ${edge([{x:164,y:116},{x:184,y:116}],["network","info","reports","monitor","nautilus","fundops","tolas","tap"],"leaf","network")}
+        ${edge([{x:424,y:116},{x:404,y:116}],["network","info","reports","monitor","nautilus","fundops","tolas","tap"],"leaf","network")}
+        ${edge([{x:500,y:132},{x:500,y:208}],["network","wenning2"],"leaf","network")}
+        ${edge([{x:294,y:132},{x:294,y:164}],["network","info","reports","monitor"],"leaf","network")}
+        ${edge([{x:380,y:132},{x:380,y:150},{x:640,y:150},{x:640,y:164}],["network","nautilus"],"leaf","network")}
+        ${edge([{x:380,y:132},{x:380,y:150},{x:616,y:150},{x:616,y:548},{x:630,y:548}],["network","fundops"],"leaf","network")}
+        ${edge([{x:380,y:132},{x:380,y:150},{x:1030,y:150},{x:1030,y:132}],["network","tolas","tap"],"leaf","network")}
+        ${edge([{x:1060,y:132},{x:1060,y:164}],["network","tolas"],"leaf","network")}
+        ${edge([{x:1322,y:60},{x:1322,y:401},{x:1310,y:401}],["network","tolas"],"leaf","network")}
 
-        ${edge([{x:22,y:200},{x:18,y:200},{x:18,y:540},{x:22,y:540}],["wenning2","info","reports","monitor"],"spine",null,"1",12,262)}
-        ${edge([{x:18,y:290},{x:22,y:290}],["wenning2","info"],"spine")}
-        ${edge([{x:18,y:372},{x:22,y:372}],["wenning2","reports"],"spine")}
-        ${edge([{x:546,y:198},{x:630,y:198}],["wenning2","nautilus"],"sys",null,"1 as user",572,212)}
-        ${edge([{x:546,y:176},{x:570,y:176},{x:570,y:74},{x:978,y:74},{x:978,y:190},{x:998,y:190}],["wenning2","tolas"],"sys",null,"1",772,75)}
-        ${edge([{x:546,y:374},{x:574,y:374},{x:574,y:230},{x:630,y:230}],["reports","nautilus"],"sys",null,"4 noon",559,306)}
-        ${edge([{x:546,y:484},{x:598,y:484},{x:598,y:244},{x:630,y:244}],["monitor","nautilus"],"sys",null,"2 book",583,420)}
-        ${edge([{x:998,y:204},{x:958,y:204}],["tolas","nautilus"],"sys",null,"5 SSO",962,214)}
-        ${edge([{x:958,y:380},{x:998,y:380}],["nautilus","tolas"],"sys",null,"7 sync",961,392)}
-        ${edge([{x:940,y:488},{x:940,y:410}],["fundops","nautilus"],"sys",null,"6 recon",895,461)}
-        ${edge([{x:998,y:287},{x:978,y:287},{x:978,y:690},{x:10,y:690},{x:10,y:312},{x:22,y:312}],["tolas","info"],"sys",null,"3 trigger",420,691)}
+        ${edge([{x:22,y:224},{x:18,y:224},{x:18,y:564},{x:22,y:564}],["wenning2","info","reports","monitor"],"spine",null,"1",12,286)}
+        ${edge([{x:18,y:314},{x:22,y:314}],["wenning2","info"],"spine")}
+        ${edge([{x:18,y:396},{x:22,y:396}],["wenning2","reports"],"spine")}
+        ${edge([{x:546,y:222},{x:630,y:222}],["wenning2","nautilus"],"sys",null,"1 as user",556,236)}
+        ${edge([{x:546,y:200},{x:580,y:200},{x:580,y:74},{x:978,y:74},{x:978,y:214},{x:998,y:214}],["wenning2","tolas"],"sys",null,"1",772,75)}
+        ${edge([{x:546,y:398},{x:574,y:398},{x:574,y:254},{x:630,y:254}],["reports","nautilus"],"sys",null,"4 noon",559,330)}
+        ${edge([{x:546,y:508},{x:598,y:508},{x:598,y:268},{x:630,y:268}],["monitor","nautilus"],"sys",null,"2 book",558,444)}
+        ${edge([{x:998,y:228},{x:958,y:228}],["tolas","nautilus"],"sys",null,"5 SSO",962,238)}
+        ${edge([{x:958,y:404},{x:998,y:404}],["nautilus","tolas"],"sys",null,"7 sync",961,416)}
+        ${edge([{x:940,y:512},{x:940,y:434}],["fundops","nautilus"],"sys",null,"6 recon",895,485)}
+        ${edge([{x:998,y:311},{x:978,y:311},{x:978,y:754},{x:10,y:754},{x:10,y:336},{x:22,y:336}],["tolas","info"],"sys",null,"3 trigger",420,755)}
 
-        ${edge([{x:403,y:184},{x:403,y:70},{x:1337,y:70},{x:1337,y:835},{x:1326,y:835}],["wenning2","notify"],"leaf","wenning2")}
-        ${edge([{x:538,y:206},{x:562,y:206},{x:562,y:70},{x:1337,y:70},{x:1337,y:795},{x:1326,y:795}],["wenning2","notify"],"leaf","wenning2")}
 
-        ${edge([{x:60,y:322},{x:60,y:738}],["info","exchanges"],"leaf","info")}
-        ${edge([{x:170,y:322},{x:170,y:696},{x:530,y:696},{x:530,y:818}],["info","exchanges"],"leaf","info")}
-        ${edge([{x:170,y:322},{x:170,y:696},{x:700,y:696},{x:700,y:814}],["info","infoplat"],"leaf","info")}
-        ${edge([{x:170,y:322},{x:170,y:696},{x:900,y:696},{x:900,y:814}],["info","infoplat"],"leaf","info")}
-        ${edge([{x:170,y:322},{x:170,y:696},{x:1100,y:696},{x:1100,y:738}],["info","notify"],"leaf","info")}
+        ${edge([{x:530,y:270},{x:530,y:760},{x:1337,y:760},{x:1337,y:899},{x:1326,y:899}],["wenning2","notify"],"leaf","wenning2")}
+        ${edge([{x:530,y:270},{x:530,y:760},{x:1337,y:760},{x:1337,y:859},{x:1326,y:859}],["wenning2","notify"],"leaf","wenning2")}
 
-        ${edge([{x:290,y:432},{x:290,y:696},{x:740,y:696},{x:740,y:890}],["reports","infoplat"],"leaf","reports")}
-        ${edge([{x:290,y:432},{x:290,y:696},{x:940,y:696},{x:940,y:776}],["reports","infoplat"],"leaf","reports")}
-        ${edge([{x:450,y:432},{x:450,y:696},{x:1060,y:696},{x:1060,y:818}],["reports","notify"],"leaf","reports")}
-        ${edge([{x:150,y:390},{x:150,y:696},{x:1140,y:696},{x:1140,y:858}],["reports","notify"],"leaf","reports")}
-        ${edge([{x:500,y:390},{x:500,y:696},{x:240,y:696},{x:240,y:738}],["reports","exchanges"],"leaf","reports")}
+        ${edge([{x:60,y:346},{x:60,y:802}],["info","exchanges"],"leaf","info")}
+        ${edge([{x:170,y:346},{x:170,y:760},{x:590,y:760},{x:590,y:882}],["info","exchanges"],"leaf","info")}
+        ${edge([{x:170,y:346},{x:170,y:760},{x:700,y:760},{x:700,y:878}],["info","infoplat"],"leaf","info")}
+        ${edge([{x:170,y:346},{x:170,y:760},{x:900,y:760},{x:900,y:878}],["info","infoplat"],"leaf","info")}
+        ${edge([{x:170,y:346},{x:170,y:760},{x:1100,y:760},{x:1100,y:802}],["info","notify"],"leaf","info")}
 
-        ${edge([{x:220,y:576},{x:220,y:696},{x:110,y:696},{x:110,y:738}],["monitor","exchanges"],"leaf","monitor")}
-        ${edge([{x:350,y:576},{x:350,y:696},{x:960,y:696},{x:960,y:852}],["monitor","infoplat"],"leaf","monitor")}
-        ${edge([{x:470,y:576},{x:470,y:696},{x:780,y:696},{x:780,y:852}],["monitor","infoplat"],"leaf","monitor")}
-        ${edge([{x:260,y:620},{x:260,y:696},{x:680,y:696},{x:680,y:738}],["monitor","infoplat"],"leaf","monitor")}
-        ${edge([{x:546,y:520},{x:550,y:520},{x:550,y:696},{x:1090,y:696},{x:1090,y:738}],["monitor","notify"],"leaf","monitor")}
-        ${edge([{x:546,y:520},{x:550,y:520},{x:550,y:696},{x:1050,y:696},{x:1050,y:778}],["monitor","notify"],"leaf","monitor")}
+        ${edge([{x:290,y:456},{x:290,y:760},{x:740,y:760},{x:740,y:954}],["reports","infoplat"],"leaf","reports")}
+        ${edge([{x:290,y:456},{x:290,y:760},{x:940,y:760},{x:940,y:840}],["reports","infoplat"],"leaf","reports")}
+        ${edge([{x:450,y:456},{x:450,y:760},{x:1060,y:760},{x:1060,y:882}],["reports","notify"],"leaf","reports")}
+        ${edge([{x:150,y:414},{x:150,y:760},{x:1140,y:760},{x:1140,y:922}],["reports","notify"],"leaf","reports")}
+        ${edge([{x:500,y:414},{x:500,y:760},{x:240,y:760},{x:240,y:802}],["reports","exchanges"],"leaf","reports")}
 
-        ${edge([{x:950,y:234},{x:970,y:234},{x:970,y:696},{x:610,y:696},{x:610,y:738}],["nautilus","exchanges"],"leaf","nautilus")}
-        ${edge([{x:950,y:234},{x:970,y:234},{x:970,y:696},{x:400,y:696},{x:400,y:778}],["nautilus","exchanges"],"leaf","nautilus")}
-        ${edge([{x:950,y:234},{x:970,y:234},{x:970,y:696},{x:760,y:696},{x:760,y:776}],["nautilus","infoplat"],"leaf","nautilus")}
-        ${edge([{x:950,y:310},{x:970,y:310},{x:970,y:696},{x:720,y:696},{x:720,y:738}],["nautilus","infoplat"],"leaf","nautilus")}
-        ${edge([{x:950,y:310},{x:970,y:310},{x:970,y:696},{x:880,y:696},{x:880,y:738}],["nautilus","infoplat"],"leaf","nautilus")}
-        ${edge([{x:950,y:310},{x:970,y:310},{x:970,y:696},{x:430,y:696},{x:430,y:858}],["nautilus","exchanges"],"leaf","nautilus")}
+        ${edge([{x:220,y:600},{x:220,y:760},{x:110,y:760},{x:110,y:802}],["monitor","exchanges"],"leaf","monitor")}
+        ${edge([{x:350,y:600},{x:350,y:760},{x:960,y:760},{x:960,y:916}],["monitor","infoplat"],"leaf","monitor")}
+        ${edge([{x:470,y:600},{x:470,y:760},{x:780,y:760},{x:780,y:916}],["monitor","infoplat"],"leaf","monitor")}
+        ${edge([{x:260,y:644},{x:260,y:760},{x:680,y:760},{x:680,y:802}],["monitor","infoplat"],"leaf","monitor")}
+        ${edge([{x:546,y:544},{x:550,y:544},{x:550,y:760},{x:1090,y:760},{x:1090,y:802}],["monitor","notify"],"leaf","monitor")}
+        ${edge([{x:546,y:544},{x:550,y:544},{x:550,y:760},{x:1050,y:760},{x:1050,y:842}],["monitor","notify"],"leaf","monitor")}
 
-        ${edge([{x:800,y:626},{x:800,y:890}],["fundops","infoplat"],"leaf","fundops")}
+        ${edge([{x:950,y:258},{x:970,y:258},{x:970,y:760},{x:610,y:760},{x:610,y:802}],["nautilus","exchanges"],"leaf","nautilus")}
+        ${edge([{x:950,y:258},{x:970,y:258},{x:970,y:760},{x:400,y:760},{x:400,y:842}],["nautilus","exchanges"],"leaf","nautilus")}
+        ${edge([{x:950,y:258},{x:970,y:258},{x:970,y:760},{x:760,y:760},{x:760,y:840}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:950,y:334},{x:970,y:334},{x:970,y:760},{x:720,y:760},{x:720,y:802}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:950,y:334},{x:970,y:334},{x:970,y:760},{x:880,y:760},{x:880,y:802}],["nautilus","infoplat"],"leaf","nautilus")}
+        ${edge([{x:950,y:334},{x:970,y:334},{x:970,y:760},{x:430,y:760},{x:430,y:922}],["nautilus","exchanges"],"leaf","nautilus")}
 
-        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:130,y:696},{x:130,y:738}],["tolas","exchanges"],"leaf","tolas")}
-        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:300,y:696},{x:300,y:738}],["tolas","exchanges"],"leaf","tolas")}
-        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:200,y:696},{x:200,y:778}],["tolas","exchanges"],"leaf","tolas")}
-        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:40,y:696},{x:40,y:818}],["tolas","exchanges"],"leaf","tolas")}
-        ${edge([{x:998,y:257},{x:986,y:257},{x:986,y:696},{x:280,y:696},{x:280,y:818}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:800,y:650},{x:800,y:954}],["fundops","infoplat"],"leaf","fundops")}
 
-        ${edge([{x:1318,y:500},{x:1330,y:500},{x:1330,y:696},{x:360,y:696},{x:360,y:858}],["tap","exchanges"],"leaf","tap")}
-        ${edge([{x:1318,y:500},{x:1330,y:500},{x:1330,y:696},{x:80,y:696},{x:80,y:818}],["tap","exchanges"],"leaf","tap")}
-        ${edge([{x:1318,y:500},{x:1330,y:500},{x:1330,y:696},{x:250,y:696},{x:250,y:818}],["tap","exchanges"],"leaf","tap")}
-        ${edge([{x:1318,y:500},{x:1330,y:500},{x:1330,y:696},{x:1150,y:696},{x:1150,y:738}],["tap","notify"],"leaf","tap")}
-        ${edge([{x:1318,y:652},{x:1330,y:652},{x:1330,y:696},{x:380,y:696},{x:380,y:858}],["tap","exchanges"],"leaf","tap")}
+        ${edge([{x:998,y:281},{x:986,y:281},{x:986,y:760},{x:130,y:760},{x:130,y:802}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:998,y:281},{x:986,y:281},{x:986,y:760},{x:300,y:760},{x:300,y:802}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:998,y:281},{x:986,y:281},{x:986,y:760},{x:200,y:760},{x:200,y:842}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:998,y:281},{x:986,y:281},{x:986,y:760},{x:40,y:760},{x:40,y:882}],["tolas","exchanges"],"leaf","tolas")}
+        ${edge([{x:998,y:281},{x:986,y:281},{x:986,y:760},{x:280,y:760},{x:280,y:882}],["tolas","exchanges"],"leaf","tolas")}
 
-        ${caption(16,710,"EXTERNAL  ·  GROUP is level 2  ·  provider is level 3")}
+        ${edge([{x:1318,y:524},{x:1330,y:524},{x:1330,y:760},{x:360,y:760},{x:360,y:922}],["tap","exchanges"],"leaf","tap")}
+        ${edge([{x:1318,y:524},{x:1330,y:524},{x:1330,y:760},{x:80,y:760},{x:80,y:882}],["tap","exchanges"],"leaf","tap")}
+        ${edge([{x:1318,y:524},{x:1330,y:524},{x:1330,y:760},{x:250,y:760},{x:250,y:882}],["tap","exchanges"],"leaf","tap")}
+        ${edge([{x:1318,y:524},{x:1330,y:524},{x:1330,y:760},{x:1150,y:760},{x:1150,y:802}],["tap","notify"],"leaf","tap")}
+        ${edge([{x:1318,y:710},{x:1330,y:710},{x:1330,y:760},{x:380,y:760},{x:380,y:922}],["tap","exchanges"],"leaf","tap")}
+
+        ${leaf(14,708,958,28,"NAT gateway · public-edge · Sydney EIP","every outbound call from this VPC goes in here and out through the internet gateway",["network","wenning2","info","reports","monitor","nautilus","fundops"])}
+        ${leaf(984,590,348,26,"NAT gateway · public-edge · Tokyo EIP","every outbound call from Tolas and TAP leaves here",["network","tolas","tap"])}
+
+        ${caption(16,774,"EXTERNAL  ·  GROUP is level 2  ·  provider is level 3")}
       </svg>`;
     }
 
